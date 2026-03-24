@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PC2 v2.0 — Product Content Creator | SiteOne Landscape Supply</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23C0392B'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-weight='bold' font-family='sans-serif'>P2</text></svg>">
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────── -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">PC2</div>
+    <div class="header-title">Product Content Creator <span>v2.0</span></div>
+  </div>
+  <div class="header-right" style="gap:12px;align-items:center;display:flex">
+    <button class="header-icon-btn" onclick="alert('Settings panel coming soon')" title="Settings">&#x2699;</button>
+    <button class="header-icon-btn" onclick="alert('Notifications')" title="Notifications">&#x1F514;</button>
+    <div class="user-profile">
+      <div class="user-avatar">Y</div>
+      <span class="user-name">Yatendra</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── APP LAYOUT ─────────────────────────────── -->
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-label">Modules</div>
+    <div class="nav-item active" data-module="ingestion">
+      <span class="nav-icon">&#x1F4E5;</span>
+      <span>Ingestion</span>
+      <span class="badge">Tab 1</span>
+    </div>
+    <div class="nav-item" data-module="enrichment">
+      <span class="nav-icon">&#x2728;</span>
+      <span>Enrichment</span>
+      <span class="badge">Tab 2</span>
+    </div>
+    <div class="nav-item" data-module="athena">
+      <span class="nav-icon">&#x1F6E1;</span>
+      <span>Athena DQ</span>
+      <span class="badge">Tab 3</span>
+    </div>
+
+    <div class="sidebar-footer">
+      <strong>iksula</strong> | #eCommerceUninterrupted<br>
+      <span style="font-size:10px;opacity:0.7">PC2 v2.0 Demo Build</span>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- ════════════════════════════════════════════ -->
+    <!-- MODULE 1: INGESTION                         -->
+    <!-- ════════════════════════════════════════════ -->
+    <div class="module-panel active" id="panel-ingestion">
+      <div class="module-header">
+        <h2>&#x1F4E5; Ingestion</h2>
+        <p>Extract data from given sources &mdash; text, PDFs, images &mdash; and turn it into structured, categorised product records.</p>
+      </div>
+
+      <div class="sub-tabs">
+        <div class="sub-tab active" data-subtab="ingest-pdf">&#x1F4C4; Supplier PDF</div>
+        <div class="sub-tab" data-subtab="ingest-image">&#x1F4F7; Product Image</div>
+        <div class="sub-tab" data-subtab="ingest-dedup">&#x1F504; Deduplicate</div>
+        <div class="sub-tab" data-subtab="ingest-category">&#x1F3F7; Auto-Categorize</div>
+        <div class="sub-tab" data-subtab="ingest-bulk">&#x1F4CA; Bulk Upload</div>
+      </div>
+
+      <!-- 3a: PDF -->
+      <div class="sub-panel active" id="ingest-pdf">
+        <div class="card">
+          <div class="card-header">
+            <span>Upload Supplier PDFs</span>
+            <span style="font-size:12px;color:var(--gray-500)">Multiple PDFs supported</span>
+          </div>
+          <div class="card-body">
+            <div class="upload-zone" id="pdf-upload-zone">
+              <div class="icon">&#x1F4C4;</div>
+              <h3>Drag & drop supplier PDFs here</h3>
+              <p>Upload one or multiple PDFs &mdash; spec sheets, product catalogs, data sheets</p>
+              <input type="file" id="pdf-file-input" accept=".pdf" multiple>
+            </div>
+            <div id="pdf-file-list" style="display:none;margin-top:16px">
+              <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Selected Files</div>
+              <div id="pdf-file-names" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+            </div>
+          </div>
+        </div>
+        <div class="results-grid" id="pdf-results">
+          <div class="flow-indicator" id="pdf-flow-msg">&#x2705; PDFs ingested successfully &mdash; fields extracted and mapped to schema</div>
+          <div id="pdf-results-container"></div>
+          <div style="display:flex;gap:12px;margin-top:8px">
+            <button class="btn btn-primary" onclick="sendToEnrichment()">Send to Enrichment &#x2192;</button>
+            <select class="search-input" id="pdf-product-selector" style="flex:none;width:auto;padding:8px 12px;font-size:13px" title="Select which product to enrich">
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3b: Image (Multiple) -->
+      <div class="sub-panel" id="ingest-image">
+        <div class="card">
+          <div class="card-header">
+            <span>Upload Product Images</span>
+            <span style="font-size:12px;color:var(--gray-500)">Multiple images supported</span>
+          </div>
+          <div class="card-body">
+            <div class="upload-zone" id="image-upload-zone">
+              <div class="icon">&#x1F4F7;</div>
+              <h3>Drag & drop product images here</h3>
+              <p>Upload one or multiple images &mdash; packaging shots, label scans, product photos &mdash; JPG, PNG, WebP</p>
+              <input type="file" id="image-file-input" accept="image/*" multiple>
+            </div>
+            <div id="image-thumbnails" style="display:none;margin-top:16px">
+              <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Selected Images</div>
+              <div id="image-thumb-grid" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+            </div>
+          </div>
+        </div>
+        <div class="results-grid" id="image-results">
+          <div class="flow-indicator" id="image-flow-msg">&#x2705; Images processed &mdash; text and data extracted via Computer Vision + LLM</div>
+          <div id="image-results-container"></div>
+          <div style="display:flex;gap:12px;margin-top:8px">
+            <button class="btn btn-primary" onclick="sendToEnrichment()">Send to Enrichment &#x2192;</button>
+            <select class="search-input" id="image-product-selector" style="flex:none;width:auto;padding:8px 12px;font-size:13px" title="Select which product to enrich">
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3c: Web -->
+      <div class="sub-panel" id="ingest-web">
+        <div class="card">
+          <div class="card-header">Web / Internet Extraction</div>
+          <div class="card-body">
+            <p style="margin-bottom:16px;font-size:14px;color:var(--gray-600)">Targeted, schema-aware extraction from manufacturer and distributor sites. Not broad scraping &mdash; specific fields pulled based on product category.</p>
+            <div class="search-group">
+              <input class="search-input" id="web-search-input" placeholder="Enter product name or manufacturer (e.g. Hunter Pro-HC Controller)">
+              <button class="btn btn-primary" id="web-search-btn" onclick="searchWeb()">&#x1F50D; Extract</button>
+            </div>
+          </div>
+        </div>
+        <div class="results-grid" id="web-results">
+          <div class="flow-indicator">&#x2705; Structured data extracted from web sources &mdash; targeted, not scraped</div>
+          <div class="card">
+            <div class="card-header">
+              <span>Web-Extracted Product Data</span>
+              <span id="web-sources" style="font-size:12px;color:var(--gray-500)"></span>
+            </div>
+            <div class="card-body">
+              <div class="product-summary" id="web-product-summary"></div>
+              <table class="attr-table">
+                <thead>
+                  <tr><th>Field</th><th>Value</th><th>Source</th><th>Confidence</th></tr>
+                </thead>
+                <tbody id="web-attrs-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="sendToEnrichment()">Send to Enrichment &#x2192;</button>
+        </div>
+      </div>
+
+      <!-- 3c: Deduplicate -->
+      <div class="sub-panel" id="ingest-dedup">
+        <div class="card">
+          <div class="card-header">
+            <span>Product Deduplication</span>
+            <span style="font-size:12px;color:var(--gray-500)">Detect and merge duplicate product records</span>
+          </div>
+          <div class="card-body">
+            <p style="margin-bottom:16px;font-size:14px;color:var(--gray-600)">
+              PC2 scans ingested products for potential duplicates using product name, model number, brand, and attribute similarity. Matches are grouped for review.
+            </p>
+            <div id="dedup-empty" class="empty-state">
+              <div class="icon">&#x1F504;</div>
+              <h3>Ingest products first</h3>
+              <p>Upload PDFs, images, or use Bulk Upload, then run deduplication to find matches.</p>
+            </div>
+            <div id="dedup-ready" style="display:none">
+              <button class="btn btn-primary" id="dedup-run-btn" onclick="runDeduplication()">&#x1F50D; Scan for Duplicates</button>
+            </div>
+          </div>
+        </div>
+        <div class="results-grid" id="dedup-results">
+          <div class="flow-indicator" id="dedup-flow-msg">&#x2705; Deduplication scan complete</div>
+          <div id="dedup-sources-container"></div>
+          <div id="dedup-summary" style="margin-bottom:16px">
+            <div class="dashboard-grid">
+              <div class="stat-card blue">
+                <div class="stat-label">Products Scanned</div>
+                <div class="stat-value" id="dedup-stat-scanned">0</div>
+              </div>
+              <div class="stat-card red">
+                <div class="stat-label">Duplicate Groups</div>
+                <div class="stat-value" id="dedup-stat-groups">0</div>
+              </div>
+              <div class="stat-card green">
+                <div class="stat-label">Unique Products</div>
+                <div class="stat-value" id="dedup-stat-unique">0</div>
+              </div>
+            </div>
+          </div>
+          <div id="dedup-groups-container"></div>
+        </div>
+      </div>
+
+      <!-- 3d: Auto-Categorize -->
+      <div class="sub-panel" id="ingest-category">
+        <div class="card">
+          <div class="card-header">Automatic Category Identification</div>
+          <div class="card-body">
+            <div id="categorize-empty" class="empty-state">
+              <div class="icon">&#x1F3F7;</div>
+              <h3>Ingest a product first</h3>
+              <p>Upload a PDF, image, or search the web to get product data, then auto-categorize it here.</p>
+            </div>
+            <div id="categorize-ready" style="display:none">
+              <div class="product-summary" id="cat-product-summary"></div>
+              <button class="btn btn-primary" id="categorize-btn" onclick="autoCategorize()">&#x1F916; Identify Category</button>
+            </div>
+          </div>
+        </div>
+        <div class="results-grid" id="category-results">
+          <div class="flow-indicator">&#x2705; Category identified automatically with high confidence</div>
+          <div class="card">
+            <div class="card-header">Classification Result</div>
+            <div class="card-body" id="category-result-body"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3e: Bulk Upload -->
+      <div class="sub-panel" id="ingest-bulk">
+        <div class="card">
+          <div class="card-header">
+            <span>Bulk Product Upload</span>
+            <span style="font-size:12px;color:var(--gray-500)">Excel (.xlsx) with product IDs, names, PDF URLs, image URLs</span>
+          </div>
+          <div class="card-body">
+            <div class="upload-zone" id="bulk-upload-zone">
+              <div class="icon">&#x1F4CA;</div>
+              <h3>Drag & drop an Excel file here</h3>
+              <p>Upload .xlsx with columns: product_id, Product Name, pdf, images</p>
+              <input type="file" id="bulk-file-input" accept=".xlsx,.xls,.csv">
+            </div>
+          </div>
+        </div>
+
+        <!-- Parsed products table -->
+        <div class="results-grid" id="bulk-parsed">
+          <div class="flow-indicator" id="bulk-flow-msg">&#x2705; Excel parsed successfully</div>
+
+          <!-- Progress bar -->
+          <div class="card" id="bulk-progress-card" style="display:none">
+            <div class="card-body" style="padding:16px 20px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <span style="font-size:14px;font-weight:600">Processing Products</span>
+                <span id="bulk-progress-text" style="font-size:13px;color:var(--gray-600)">0 / 0</span>
+              </div>
+              <div style="width:100%;height:8px;background:var(--gray-200);border-radius:4px;overflow:hidden">
+                <div id="bulk-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--red),var(--green));border-radius:4px;transition:width 0.5s ease"></div>
+              </div>
+              <div id="bulk-progress-status" style="font-size:12px;color:var(--gray-500);margin-top:6px">Waiting to start...</div>
+            </div>
+          </div>
+
+          <!-- Summary stats after processing -->
+          <div id="bulk-summary" style="display:none">
+            <div class="dashboard-grid" style="margin-bottom:16px">
+              <div class="stat-card green">
+                <div class="stat-label">Processed</div>
+                <div class="stat-value" id="bulk-stat-processed">0</div>
+                <div class="stat-sub">Products completed</div>
+              </div>
+              <div class="stat-card blue">
+                <div class="stat-label">Avg ACR Score</div>
+                <div class="stat-value" id="bulk-stat-acr">--</div>
+                <div class="stat-sub">Attribute completeness</div>
+              </div>
+              <div class="stat-card red">
+                <div class="stat-label">DQ Issues Found</div>
+                <div class="stat-value" id="bulk-stat-issues">0</div>
+                <div class="stat-sub">Across all products</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sources panel -->
+          <div id="bulk-sources-container"></div>
+
+          <!-- Products table -->
+          <div class="card">
+            <div class="card-header">
+              <span>Products (<span id="bulk-count">0</span>)</span>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-sm btn-secondary" id="bulk-dedup-btn" onclick="runBulkDedup()">&#x1F504; Deduplicate</button>
+                <button class="btn btn-success btn-sm" id="bulk-process-btn" onclick="bulkProcessAll()">&#x1F680; Process All Products</button>
+                <button class="btn btn-primary btn-sm" id="bulk-enrich-btn" style="display:none" onclick="sendBulkToEnrichment()">&#x2728; Send All to Enrichment &#x2192;</button>
+              </div>
+            </div>
+            <div class="card-body" style="padding:0;max-height:500px;overflow-y:auto">
+              <table class="attr-table" style="font-size:12px">
+                <thead>
+                  <tr>
+                    <th style="width:30px">#</th>
+                    <th style="width:50px">Image</th>
+                    <th>Product Name</th>
+                    <th style="width:80px">Category</th>
+                    <th style="width:60px">ACR</th>
+                    <th style="width:60px">Sources</th>
+                    <th style="width:80px">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="bulk-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Expanded product detail -->
+          <div class="card" id="bulk-detail-card" style="display:none;margin-top:16px">
+            <div class="card-header">
+              <span id="bulk-detail-title">Product Details</span>
+              <button class="btn btn-sm btn-secondary" onclick="document.getElementById('bulk-detail-card').style.display='none'">Close</button>
+            </div>
+            <div class="card-body" id="bulk-detail-body"></div>
+          </div>
+
+          <!-- Bulk Deduplication Results -->
+          <div id="bulk-dedup-section" style="display:none;margin-top:16px">
+            <div class="card" style="border-left:4px solid var(--orange);margin-bottom:16px">
+              <div class="card-header">
+                <span>&#x1F504; Deduplication Results</span>
+                <span style="font-size:12px;color:var(--gray-500)" id="bulk-dedup-summary-text"></span>
+              </div>
+              <div class="card-body" id="bulk-dedup-groups"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════ -->
+    <!-- MODULE 2: ENRICHMENT                        -->
+    <!-- ════════════════════════════════════════════ -->
+    <div class="module-panel" id="panel-enrichment">
+      <div class="module-header">
+        <h2>&#x2728; Enrichment</h2>
+        <p>Take structured raw records from Ingestion and make them complete, accurate, and AI-ready.</p>
+      </div>
+
+      <div id="enrichment-empty" class="empty-state">
+        <div class="icon">&#x2728;</div>
+        <h3>No product loaded</h3>
+        <p>Go to Ingestion first, upload a product, then click "Send to Enrichment"</p>
+      </div>
+
+      <div id="enrichment-content" style="display:none">
+        <!-- Product Switcher (shown when multiple products loaded) -->
+        <div class="card" id="enrich-product-switcher" style="display:none;margin-bottom:16px">
+          <div class="card-header">
+            <span>&#x1F4E6; Product Selector</span>
+            <span style="font-size:12px;color:var(--gray-500)" id="enrich-switcher-count"></span>
+          </div>
+          <div class="card-body" style="padding:10px 16px">
+            <div style="display:flex;gap:12px;align-items:center">
+              <select class="search-input" id="enrich-product-select" style="flex:1;padding:8px 12px;font-size:13px" onchange="switchEnrichProduct(parseInt(this.value))"></select>
+              <button class="btn btn-sm btn-secondary" onclick="switchEnrichProduct(Math.max(0, document.getElementById('enrich-product-select').selectedIndex - 1))">&#x25C0; Prev</button>
+              <button class="btn btn-sm btn-secondary" onclick="switchEnrichProduct(Math.min(enrichProductList.length-1, document.getElementById('enrich-product-select').selectedIndex + 1))">Next &#x25B6;</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sub-tabs">
+          <div class="sub-tab active" data-subtab="enrich-attrs">&#x1F9E9; Attribute Gap Filling</div>
+          <div class="sub-tab" data-subtab="enrich-image">&#x1F441; Image Enrichment</div>
+          <div class="sub-tab" data-subtab="enrich-copy">&#x270D; Copy Generation</div>
+        </div>
+
+        <!-- 4a: Attributes -->
+        <div class="sub-panel active" id="enrich-attrs">
+          <div id="enrich-sources-container"></div>
+          <div class="flow-indicator warning" id="enrich-gap-warning">&#x26A0; Product has attribute gaps &mdash; missing fields highlighted below</div>
+          <div class="two-col" style="margin-bottom:20px">
+            <div class="card">
+              <div class="card-header">ACR Score (Before Enrichment)</div>
+              <div class="card-body">
+                <div class="acr-score">
+                  <div class="acr-circle low" id="acr-before-circle"><span id="acr-before-val">--</span></div>
+                  <div>
+                    <div class="acr-label">Attribute Completeness Rate</div>
+                    <div style="font-size:13px;color:var(--gray-600)" id="acr-before-detail">Calculating...</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="card" id="acr-after-card" style="display:none">
+              <div class="card-header">ACR Score (After Enrichment)</div>
+              <div class="card-body">
+                <div class="acr-score">
+                  <div class="acr-circle high" id="acr-after-circle"><span id="acr-after-val">--</span></div>
+                  <div>
+                    <div class="acr-label">Attribute Completeness Rate</div>
+                    <div class="acr-improvement" id="acr-improvement">-- gaps filled</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span>Product Attributes</span>
+              <button class="btn btn-success btn-sm" id="run-enrichment-btn" onclick="runEnrichment()">&#x1F916; Run Enrichment</button>
+            </div>
+            <div class="card-body">
+              <table class="attr-table">
+                <thead>
+                  <tr><th>Attribute</th><th>Value</th><th>Source</th><th>Confidence</th></tr>
+                </thead>
+                <tbody id="enrich-attrs-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4b: Image Enrichment -->
+        <div class="sub-panel" id="enrich-image">
+          <div class="card">
+            <div class="card-header">Visual Attribute Analysis</div>
+            <div class="card-body">
+              <p style="margin-bottom:16px;font-size:14px;color:var(--gray-600)">
+                Analyse the product image to generate <strong>visual attributes</strong> &mdash; things visible in the photo that aren't written anywhere.
+                <em>Different from Ingestion (which reads text). Here we analyse what the product looks like.</em>
+              </p>
+              <div id="image-enrich-preview" style="text-align:center;margin-bottom:16px"></div>
+              <button class="btn btn-primary" id="run-image-enrichment-btn" onclick="runImageEnrichment()">&#x1F441; Analyse Product Image</button>
+            </div>
+          </div>
+          <div class="results-grid" id="image-enrich-results">
+            <div id="image-enrich-sources-container"></div>
+            <div class="flow-indicator">&#x2705; Visual attributes generated from product image analysis</div>
+            <div class="card">
+              <div class="card-header">Visual Attributes</div>
+              <div class="card-body">
+                <div id="visual-summary" style="padding:12px 16px;background:var(--gray-50);border-radius:var(--radius);margin-bottom:16px;font-size:14px;color:var(--gray-700);line-height:1.6"></div>
+                <div class="visual-grid" id="visual-attrs-grid"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4c: Copy Generation -->
+        <div class="sub-panel" id="enrich-copy">
+          <div class="card">
+            <div class="card-header">
+              <span>Product Copy Generation</span>
+              <button class="btn btn-primary btn-sm" id="gen-copy-btn" onclick="generateCopy()">&#x270D; Generate Copy</button>
+            </div>
+            <div class="card-body">
+              <p style="margin-bottom:16px;font-size:14px;color:var(--gray-600)">
+                Auto-generate product copy &mdash; titles, descriptions, bullet points &mdash; category-specific and tuned for how contractors and buyers actually search.
+              </p>
+            </div>
+          </div>
+          <div class="results-grid" id="copy-results">
+            <div id="copy-sources-container"></div>
+            <div class="flow-indicator">&#x2705; Product copy generated &mdash; tuned for search and AI discovery</div>
+            <div class="card">
+              <div class="card-header">Generated Product Copy</div>
+              <div class="card-body copy-output" id="copy-output"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="enrichment-done" style="display:none;margin-top:20px">
+        <button class="btn btn-primary" onclick="sendToAthena()">Send to Athena DQ &#x2192;</button>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════ -->
+    <!-- MODULE 3: ATHENA DQ                         -->
+    <!-- ════════════════════════════════════════════ -->
+    <div class="module-panel" id="panel-athena">
+      <div class="module-header">
+        <h2>&#x1F6E1; Athena DQ</h2>
+        <p>Keep catalog quality maintained &mdash; ACR scoring, DQ issue detection, Fix engine, and Conversational Data Intelligence.</p>
+      </div>
+
+      <div class="sub-tabs">
+        <div class="sub-tab active" data-subtab="athena-dashboard">&#x1F4CA; DQ Dashboard</div>
+        <div class="sub-tab" data-subtab="athena-cdi">&#x1F4AC; CDI (Conversational)</div>
+        <div class="sub-tab" data-subtab="athena-godmode">&#x26A1; God Mode</div>
+      </div>
+
+      <!-- 5: Dashboard -->
+      <div class="sub-panel active" id="athena-dashboard">
+        <div class="dashboard-grid">
+          <div class="stat-card blue">
+            <div class="stat-label">Total SKUs</div>
+            <div class="stat-value">147,520</div>
+            <div class="stat-sub">Across all categories</div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-label">Overall ACR</div>
+            <div class="stat-value">71.3%</div>
+            <div class="stat-sub">Attribute Completeness Rate</div>
+          </div>
+          <div class="stat-card red">
+            <div class="stat-label">Open DQ Issues</div>
+            <div class="stat-value">12,678</div>
+            <div class="stat-sub">Across 9 categories</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">ACR by Category</div>
+          <div class="card-body" id="category-bars">
+            <!-- populated by JS -->
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+          <div class="card-header">Top DQ Issues</div>
+          <div class="card-body">
+            <table class="attr-table">
+              <thead>
+                <tr><th>Category</th><th>Top Issue</th><th>Affected SKUs</th><th>Action</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="field-name">Pipes & Fittings</td>
+                  <td>Missing Compatibility attribute</td>
+                  <td><span class="confidence low">1,247 SKUs</span></td>
+                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Pipes & Fittings')">&#x1F527; Fix</button></td>
+                </tr>
+                <tr>
+                  <td class="field-name">Pavers</td>
+                  <td>Missing Dimensions attribute</td>
+                  <td><span class="confidence low">892 SKUs</span></td>
+                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Pavers')">&#x1F527; Fix</button></td>
+                </tr>
+                <tr>
+                  <td class="field-name">Fertilizers</td>
+                  <td>Missing NPK Ratio</td>
+                  <td><span class="confidence medium">678 SKUs</span></td>
+                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Fertilizers')">&#x1F527; Fix</button></td>
+                </tr>
+                <tr>
+                  <td class="field-name">Drip Irrigation</td>
+                  <td>Missing Pressure Rating</td>
+                  <td><span class="confidence medium">612 SKUs</span></td>
+                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Drip Irrigation')">&#x1F527; Fix</button></td>
+                </tr>
+                <tr>
+                  <td class="field-name">Irrigation Valves</td>
+                  <td>Missing Flow Rate</td>
+                  <td><span class="confidence medium">489 SKUs</span></td>
+                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Irrigation Valves')">&#x1F527; Fix</button></td>
+                </tr>
+                <tr>
+                  <td class="field-name">LED Fixtures</td>
+                  <td>Missing Lumen Output</td>
+                  <td><span class="confidence medium">367 SKUs</span></td>
+                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'LED Fixtures')">&#x1F527; Fix</button></td>
+                </tr>
+                <tr>
+                  <td class="field-name">Irrigation Controllers</td>
+                  <td>Missing Voltage Rating</td>
+                  <td><span class="confidence medium">312 SKUs</span></td>
+                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Irrigation Controllers')">&#x1F527; Fix</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5a: CDI Chat -->
+      <div class="sub-panel" id="athena-cdi">
+        <div class="chat-container">
+          <div class="chat-header">
+            &#x1F916; Athena CDI &mdash; Conversational Data Intelligence
+          </div>
+          <div class="chat-messages" id="chat-messages">
+            <div class="chat-msg assistant">
+              Welcome to Athena CDI. I have full visibility into SiteOne's product catalog &mdash; 147,520 SKUs across 9 categories. Ask me anything about catalog health, DQ issues, or initiate fix runs.<br><br>
+              Try asking me something like the suggestions below.
+            </div>
+          </div>
+          <div style="padding:8px 16px 0">
+            <div class="suggestions">
+              <div class="suggestion" onclick="askCDI('Review Irrigation Controllers and show me the top DQ issues')">Review Irrigation Controllers issues</div>
+              <div class="suggestion" onclick="askCDI('Fix all products where voltage attribute is missing')">Fix missing voltage attributes</div>
+              <div class="suggestion" onclick="askCDI('Which categories have the lowest ACR scores?')">Lowest ACR categories</div>
+              <div class="suggestion" onclick="askCDI('Show me recent quality trends across the catalog')">Quality trends</div>
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <input class="chat-input" id="chat-input" placeholder="Ask Athena about catalog quality..." onkeydown="if(event.key==='Enter')sendChat()">
+            <button class="chat-send" onclick="sendChat()">&#x27A4;</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5b: God Mode -->
+      <div class="sub-panel" id="athena-godmode">
+        <div class="card" style="margin-bottom:20px;border-left:4px solid var(--orange)">
+          <div class="card-body" style="display:flex;align-items:center;gap:16px">
+            <span style="font-size:32px">&#x26A1;</span>
+            <div>
+              <h3 style="font-size:16px;font-weight:700;margin-bottom:4px">God Mode &mdash; Proactive Catalog Monitoring</h3>
+              <p style="font-size:14px;color:var(--gray-600)">Athena monitors your catalog continuously and proactively alerts you when patterns emerge. Your team clicks "Yes" &mdash; it runs. The catalog heals itself.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert-card" style="border-left:4px solid var(--red)">
+          <span class="alert-icon">&#x1F6A8;</span>
+          <div class="alert-content">
+            <h4>Irrigation Fittings from Supplier X &mdash; Missing Compatibility Pattern</h4>
+            <p>47 products have developed a missing compatibility attribute pattern over the last 30 days. This appears to be a systematic gap from a recent supplier data import.</p>
+            <div class="alert-time">Detected 2 hours ago</div>
+            <button class="btn btn-success btn-sm" style="margin-top:8px" onclick="initiateCleanup(this)">&#x2705; Initiate Cleanup</button>
+          </div>
+        </div>
+
+        <div class="alert-card" style="border-left:4px solid var(--orange)">
+          <span class="alert-icon">&#x1F4F8;</span>
+          <div class="alert-content">
+            <h4>LED Fixtures &mdash; Zero Image Coverage</h4>
+            <p>23 new products from Hunter Industries have 0% image coverage. Visual attribute enrichment cannot run without product images.</p>
+            <div class="alert-time">Detected 5 hours ago</div>
+            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="alert('Image request sent to supplier via automated email workflow.')">&#x1F4E7; Request Images from Supplier</button>
+          </div>
+        </div>
+
+        <div class="alert-card" style="border-left:4px solid var(--yellow)">
+          <span class="alert-icon">&#x1F4C9;</span>
+          <div class="alert-content">
+            <h4>Fertilizer Category &mdash; ACR Decline</h4>
+            <p>Category ACR dropped 3.2% this month (70.1% &rarr; 66.9%) due to new supplier onboarding with incomplete product data. 234 SKUs affected.</p>
+            <div class="alert-time">Detected 1 day ago</div>
+            <button class="btn btn-success btn-sm" style="margin-top:8px" onclick="initiateCleanup(this)">&#x1F527; Enrich Missing Attributes</button>
+          </div>
+        </div>
+
+        <div class="alert-card" style="border-left:4px solid var(--blue)">
+          <span class="alert-icon">&#x1F504;</span>
+          <div class="alert-content">
+            <h4>Sprinkler Heads &mdash; Duplicate Detection</h4>
+            <p>12 potential duplicate product records detected across 3 suppliers. Same model numbers with different SKUs &mdash; likely needs consolidation.</p>
+            <div class="alert-time">Detected 3 days ago</div>
+            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="alert('Duplicate review queue opened. 12 records flagged for manual review.')">&#x1F50D; Review Duplicates</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── LOADING OVERLAY ─────────────────────────── -->
+<div class="loading-overlay" id="loading">
+  <div class="loading-card">
+    <div class="spinner"></div>
+    <h3 id="loading-title">Processing...</h3>
+    <p id="loading-text">AI is extracting data</p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
