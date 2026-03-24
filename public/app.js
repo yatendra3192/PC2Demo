@@ -135,7 +135,9 @@ function multiSourceTags(sources) {
     'pdf_reanalysis': ['kb', 'PDF (re-scan)'],
   };
   return srcArray.map(s => {
-    const [cls, label] = srcMap[s] || ['', s];
+    // Normalize objects to strings (LLM may return {source: "pdf"} instead of "pdf")
+    const key = (typeof s === 'object' && s !== null) ? (s.source || s.type || s.name || String(s)) : s;
+    const [cls, label] = srcMap[key] || ['', key];
     return `<span class="source-tag ${cls}">${label}</span>`;
   }).join(' ');
 }
@@ -776,7 +778,8 @@ function switchEnrichProduct(idx) {
     document.getElementById('run-image-enrichment-btn').style.display = 'none';
   }
 
-  // Don't show enrichment-done until user actually runs enrichment on this product
+  // Hide enrichment-done until user actually runs enrichment on this product
+  document.getElementById('enrichment-done').style.display = 'none';
 }
 
 function populateEnrichmentTable() {
@@ -889,7 +892,7 @@ async function runEnrichment() {
     let gapsFilled = 0;
     let total = 0;
 
-    Object.entries(enriched.enriched_attributes).forEach(([key, val]) => {
+    Object.entries(enriched.enriched_attributes || enriched.attributes || {}).forEach(([key, val]) => {
       // Skip attributes with no value or 0% confidence
       if (!val.value || val.value === '' || val.value === 'N/A' || val.value === 'null') return;
       if (val.confidence !== undefined && val.confidence <= 0) return;
@@ -911,7 +914,7 @@ async function runEnrichment() {
     const tpl = (bulkIdx !== undefined && pipelineState.templates[bulkIdx]) ? pipelineState.templates[bulkIdx].template : null;
     const acrBeforeData = computeACR(currentProduct, tpl);
     // Write enriched attributes back to currentProduct so DQ/dashboard see them
-    currentProduct.attributes = enriched.enriched_attributes;
+    currentProduct.attributes = enriched.enriched_attributes || enriched.attributes || {};
     currentProduct.specifications = {};
     const acrAfterData = computeACR(currentProduct, tpl);
 
@@ -1043,7 +1046,7 @@ async function generateCopy() {
       </div>
       <div class="copy-section">
         <h4>Long Description</h4>
-        <div class="content">${copy.long_description.replace(/\n/g, '<br>')}</div>
+        <div class="content">${(copy.long_description || '').replace(/\n/g, '<br>')}</div>
       </div>
       <div class="copy-section">
         <h4>Key Selling Points</h4>
@@ -1504,7 +1507,13 @@ async function runBatchCategorize() {
     if (!json.success) throw new Error(json.error);
 
     const categories = json.data.categories || [];
-    pipelineState.categories = categories;
+    // Reindex categories by their index field so downstream lookups by product index are correct
+    const reindexed = [];
+    categories.forEach(cat => {
+      const idx = cat.index !== undefined ? cat.index : reindexed.length;
+      reindexed[idx] = cat;
+    });
+    pipelineState.categories = reindexed;
 
     // Update table rows
     categories.forEach((cat, i) => {

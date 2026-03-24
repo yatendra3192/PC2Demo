@@ -801,6 +801,9 @@ Mark the most complete record as is_primary=true (the one to keep). If no duplic
 app.post('/api/ingest/bulk/parse', upload.single('file'), async (req, res) => {
   try {
     const XLSX = require('xlsx');
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded' });
+    }
     const filePath = req.file.path;
 
     // Validate MIME type — must be an Excel file
@@ -949,7 +952,7 @@ Be thorough — extract every possible attribute. Include material, dimensions, 
     });
 
     const result = safeParseJSON(response.choices[0].message.content);
-    result._imageUrl = product.image_urls[0] || null;
+    result._imageUrl = (product.image_urls && product.image_urls[0]) || null;
     result._productId = product.product_id;
     result._originalName = product.product_name;
 
@@ -1283,7 +1286,7 @@ app.post('/api/enrich/gap-fill', async (req, res) => {
       }
     }
 
-    if (!pdpText && !missingAttributes) {
+    if (!pdpText && (!missingAttributes || missingAttributes.length === 0)) {
       return res.json({ success: true, data: { filled: {}, source: 'none', message: 'No data source available' } });
     }
 
