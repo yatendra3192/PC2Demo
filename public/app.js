@@ -584,6 +584,9 @@ async function autoCategorize() {
     if (!json.success) throw new Error(json.error);
 
     const cat = json.data;
+    // Save category back to currentProduct for downstream use
+    currentProduct.category = { category: cat.category, class: cat.class, classId: cat.classId, confidence: cat.confidence };
+
     const body = document.getElementById('category-result-body');
 
     let altHtml = '';
@@ -623,6 +626,19 @@ async function autoCategorize() {
 // ── SEND TO ENRICHMENT ────────────────────────────────────
 function sendToEnrichment() {
   if (!currentProduct) return;
+
+  // Reset stale enrichment state from previous sessions
+  document.getElementById('enrich-product-switcher').style.display = 'none';
+  document.getElementById('enrichment-done').style.display = 'none';
+  document.getElementById('copy-results').classList.remove('visible');
+  document.getElementById('image-enrich-results').classList.remove('visible');
+  document.getElementById('imagen-results').classList.remove('visible');
+  document.getElementById('acr-after-card').style.display = 'none';
+  document.getElementById('enrich-sources-container').innerHTML = '';
+  document.getElementById('run-enrichment-btn').textContent = '🤖 Run Enrichment';
+  document.getElementById('run-enrichment-btn').disabled = false;
+  document.getElementById('gen-copy-btn').textContent = '✍ Generate Copy';
+  document.getElementById('gen-copy-btn').disabled = false;
 
   // Switch to Enrichment tab
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -760,8 +776,7 @@ function switchEnrichProduct(idx) {
     document.getElementById('run-image-enrichment-btn').style.display = 'none';
   }
 
-  // Show enrichment-done button
-  document.getElementById('enrichment-done').style.display = 'block';
+  // Don't show enrichment-done until user actually runs enrichment on this product
 }
 
 function populateEnrichmentTable() {
@@ -895,9 +910,10 @@ async function runEnrichment() {
     const bulkIdx = currentProduct._bulkIndex;
     const tpl = (bulkIdx !== undefined && pipelineState.templates[bulkIdx]) ? pipelineState.templates[bulkIdx].template : null;
     const acrBeforeData = computeACR(currentProduct, tpl);
-    // Build a temp product with enriched attributes to compute after
-    const enrichedProduct = { ...currentProduct, attributes: enriched.enriched_attributes };
-    const acrAfterData = computeACR(enrichedProduct, tpl);
+    // Write enriched attributes back to currentProduct so DQ/dashboard see them
+    currentProduct.attributes = enriched.enriched_attributes;
+    currentProduct.specifications = {};
+    const acrAfterData = computeACR(currentProduct, tpl);
 
     document.getElementById('acr-before-val').textContent = acrBeforeData.acr + '%';
     document.getElementById('acr-after-card').style.display = 'block';
@@ -1421,7 +1437,13 @@ setupUploadZone('bulk-upload-zone', 'bulk-file-input', async (files) => {
 function resetBulkWizard() {
   bulkProducts = [];
   bulkResults = {};
-  pipelineState = { step: 1, products: [], categories: [], templates: [], extractedData: {}, userEdits: {}, dedupDecisions: {} };
+  pipelineState = { step: 1, products: [], categories: [], templates: [], extractedData: {}, userEdits: {}, dedupDecisions: {}, dedupGroups: null };
+  // Clear all global state that leaks across sessions
+  allIngestedProducts = [];
+  enrichProductList = [];
+  currentProduct = null;
+  uploadedImageBase64 = null;
+  uploadedImageMime = null;
   document.getElementById('bulk-wizard').style.display = 'none';
   document.getElementById('bulk-upload-section').style.display = 'block';
   document.getElementById('bulk-file-input').value = '';

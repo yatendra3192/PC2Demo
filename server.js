@@ -112,7 +112,7 @@ async function callAI(params) {
 
     // Return in the old format so downstream code doesn't break
     return {
-      choices: [{ message: { content: response.output_text } }]
+      choices: [{ message: { content: response.output_text || '{}' } }]
     };
   } catch (openaiErr) {
     console.log(`OpenAI failed (${openaiErr.message}), falling back to Gemini...`);
@@ -161,6 +161,17 @@ async function callAI(params) {
   return {
     choices: [{ message: { content: text } }]
   };
+}
+
+// ── SAFE JSON PARSER (handles LLM quirks) ───────────────
+function safeParseJSON(text) {
+  try { return JSON.parse(text); }
+  catch (e) {
+    // Try to extract JSON from markdown code blocks
+    const match = (text || '').match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (match) try { return JSON.parse(match[1]); } catch(e2) {}
+    throw new Error('Invalid JSON from AI response: ' + (text || '').substring(0, 200));
+  }
 }
 
 // ── CATEGORY TEMPLATES ──────────────────────────────────
@@ -297,7 +308,7 @@ If a single PDF contains multiple products, create a separate entry for each pro
     // Cleanup uploaded files
     files.forEach(file => { try { fs.unlinkSync(file.path); } catch(e) { console.warn('Cleanup failed:', e.message); } });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
     const products = result.products || [result];
 
     // Attach file names
@@ -379,7 +390,7 @@ For EACH image, create a separate product entry in the products array. Read ALL 
     // Cleanup uploaded files
     files.forEach(file => { try { fs.unlinkSync(file.path); } catch(e) { console.warn('Cleanup failed:', e.message); } });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
 
     // Attach base64 thumbnails for frontend preview
     const products = result.products || [result];
@@ -433,7 +444,7 @@ Focus on landscape supply products: irrigation controllers, sprinklers, drainage
       }]
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
     res.json({ success: true, source: 'web', data: result });
   } catch (err) {
     console.error('Web ingestion error:', err);
@@ -483,7 +494,7 @@ Return JSON:
       }]
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
     res.json({ success: true, data: result });
   } catch (err) {
     console.error('Categorize error:', err);
@@ -564,7 +575,7 @@ Return JSON:
       }]
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
     res.json({ success: true, data: result });
   } catch (err) {
     console.error('Enrichment error:', err);
@@ -625,7 +636,7 @@ Return JSON:
       }]
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
     res.json({ success: true, data: result });
   } catch (err) {
     console.error('Image analysis error:', err);
@@ -663,7 +674,7 @@ Return JSON:
       }]
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
     res.json({ success: true, data: result });
   } catch (err) {
     console.error('Copy generation error:', err);
@@ -776,7 +787,7 @@ Mark the most complete record as is_primary=true (the one to keep). If no duplic
       }]
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
     res.json({ success: true, data: result });
   } catch (err) {
     console.error('Dedup error:', err);
@@ -937,7 +948,7 @@ Be thorough — extract every possible attribute. Include material, dimensions, 
       }]
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
     result._imageUrl = product.image_urls[0] || null;
     result._productId = product.product_id;
     result._originalName = product.product_name;
@@ -1027,7 +1038,7 @@ Return JSON:
       }]
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
     res.json({ success: true, data: result });
   } catch (err) {
     console.error('Batch categorize error:', err);
@@ -1215,7 +1226,7 @@ An attribute can have multiple sources, e.g. ["pdf", "image"] if confirmed in bo
       }]
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
     result._productId = product.product_id;
     result._imageUrl = product.image_urls ? product.image_urls[0] : null;
 
@@ -1305,7 +1316,7 @@ ${pdpText || 'No text available — try to infer from product name and descripti
       }]
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = safeParseJSON(response.choices[0].message.content);
     res.json({ success: true, data: result });
   } catch (err) {
     console.error('Gap fill error:', err);
@@ -1315,8 +1326,8 @@ ${pdpText || 'No text available — try to infer from product name and descripti
 
 // 1g: Generate lifestyle image via Google Imagen 3
 app.post('/api/enrich/generate-image', async (req, res) => {
-  const { productName, description, category } = req.body;
-  const prompt = `Professional lifestyle product photo of ${productName}. ${description || ''}. Category: ${category || 'irrigation'}. Clean white or natural outdoor background, professional product photography lighting, high quality commercial catalog image.`;
+  const { productName, description, category, customPrompt } = req.body;
+  const prompt = customPrompt || `Professional lifestyle product photo of ${productName}. ${description || ''}. Category: ${category || 'irrigation'}. Clean white or natural outdoor background, professional product photography lighting, high quality commercial catalog image.`;
 
   let imageBase64 = null;
   let mimeType = 'image/png';
@@ -1486,7 +1497,7 @@ Attributes: ${JSON.stringify(attrs, null, 2).substring(0, 3000)}`
       }]
     });
 
-    const advanced = JSON.parse(response.choices[0].message.content);
+    const advanced = safeParseJSON(response.choices[0].message.content);
 
     // Calculate overall score
     const overallScore = Math.round(
