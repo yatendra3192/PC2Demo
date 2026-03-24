@@ -1070,25 +1070,38 @@ function refreshDashboard() {
   const productStats = [];
   const issuesList = [];
 
-  products.forEach(p => {
+  products.forEach((p, idx) => {
     const attrs = p.attributes || {};
     const attrKeys = Object.keys(attrs);
     let filled = 0;
-    let missing = 0;
     const missingNames = [];
 
+    // Count filled attributes (have non-empty value)
     attrKeys.forEach(key => {
       const val = typeof attrs[key] === 'object' ? attrs[key].value : attrs[key];
       if (val && val !== 'null' && val !== 'N/A' && val !== '') {
         filled++;
       } else {
-        missing++;
         missingNames.push(key);
       }
     });
 
-    // If no attrs at all, estimate from template
-    const total = Math.max(attrKeys.length, 10);
+    // Cross-reference against KB template — find required attrs NOT in extracted data at all
+    const bulkIdx = p._bulkIndex !== undefined ? p._bulkIndex : idx;
+    const tpl = pipelineState.templates[bulkIdx] ? pipelineState.templates[bulkIdx].template : null;
+    if (tpl) {
+      const allRequired = [...(tpl.required || []), ...(tpl.optional || [])];
+      allRequired.forEach(reqAttr => {
+        const found = attrKeys.find(k => k.toLowerCase() === reqAttr.toLowerCase());
+        if (!found) {
+          missingNames.push(reqAttr);
+        }
+      });
+    }
+
+    const missing = missingNames.length;
+    // Total = filled + missing (real total including template gaps)
+    const total = filled + missing;
     const acr = total > 0 ? Math.round((filled / total) * 100) : 0;
 
     totalFilled += filled;
