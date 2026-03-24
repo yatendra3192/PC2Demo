@@ -9,10 +9,218 @@ const OpenAI = require('openai');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ── AI PROVIDER WRAPPER (OpenAI → Gemini fallback) ──────
+const GEMINI_API_KEY = process.env.GOOGLE_AI_API_KEY;
+const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+function convertToGeminiFormat(messages) {
+  let systemText = '';
+  const contents = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      systemText += (systemText ? '\n\n' : '') + msg.content;
+      continue;
+    }
+
+    // Handle user messages — can be string or array (vision)
+    const parts = [];
+    if (typeof msg.content === 'string') {
+      parts.push({ text: msg.content });
+    } else if (Array.isArray(msg.content)) {
+      for (const part of msg.content) {
+        if (part.type === 'text') {
+          parts.push({ text: part.text });
+        } else if (part.type === 'image_url') {
+          const url = part.image_url.url || part.image_url;
+          if (url.startsWith('data:')) {
+            // data:image/jpeg;base64,XXXX
+            const match = url.match(/^data:([^;]+);base64,(.+)$/);
+            if (match) {
+              parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
+            }
+          } else {
+            // External URL — Gemini supports fileUri for some, but safer to describe it
+            parts.push({ text: `[Image URL: ${url}]` });
+          }
+        }
+      }
+    }
+
+    contents.push({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts
+    });
+  }
+
+  return { systemText, contents };
+}
+
+// Convert old chat.completions messages → new Responses API input format
+function convertToResponsesInput(messages) {
+  let instructions = '';
+  const input = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      instructions += (instructions ? '\n\n' : '') + msg.content;
+      continue;
+    }
+
+    // Build content parts for this message
+    if (typeof msg.content === 'string') {
+      input.push({ role: msg.role, content: msg.content });
+    } else if (Array.isArray(msg.content)) {
+      // Vision / multi-part content → convert to new format
+      const parts = [];
+      for (const part of msg.content) {
+        if (part.type === 'text') {
+          parts.push({ type: 'input_text', text: part.text });
+        } else if (part.type === 'image_url') {
+          const url = part.image_url.url || part.image_url;
+          parts.push({ type: 'input_image', image_url: url });
+        }
+      }
+      input.push({ role: msg.role, content: parts });
+    }
+  }
+
+  return { instructions, input };
+}
+
+async function callAI(params) {
+  // Try OpenAI new Responses API (gpt-5.4) first
+  try {
+    const { instructions, input } = convertToResponsesInput(params.messages);
+
+    const responsesParams = {
+      model: 'gpt-4.1',
+      input: input,
+    };
+
+    if (instructions) {
+      responsesParams.instructions = instructions;
+    }
+
+    // JSON mode
+    if (params.response_format && params.response_format.type === 'json_object') {
+      responsesParams.text = { format: { type: 'json_object' } };
+    }
+
+    const response = await openai.responses.create(responsesParams);
+
+    // Return in the old format so downstream code doesn't break
+    return {
+      choices: [{ message: { content: response.output_text } }]
+    };
+  } catch (openaiErr) {
+    console.log(`OpenAI failed (${openaiErr.message}), falling back to Gemini...`);
+  }
+
+  // Fallback to Gemini
+  if (!GEMINI_API_KEY) {
+    throw new Error('Both OpenAI and Gemini failed — no GOOGLE_AI_API_KEY configured');
+  }
+
+  const { systemText, contents } = convertToGeminiFormat(params.messages);
+
+  const geminiBody = {
+    contents,
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 8192,
+    }
+  };
+
+  // JSON mode
+  if (params.response_format && params.response_format.type === 'json_object') {
+    geminiBody.generationConfig.responseMimeType = 'application/json';
+  }
+
+  // System instruction
+  if (systemText) {
+    geminiBody.systemInstruction = { parts: [{ text: systemText }] };
+  }
+
+  const geminiRes = await fetch(GEMINI_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(geminiBody)
+  });
+
+  if (!geminiRes.ok) {
+    const errText = await geminiRes.text();
+    throw new Error(`Gemini API error ${geminiRes.status}: ${errText}`);
+  }
+
+  const geminiData = await geminiRes.json();
+  const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+
+  // Return in OpenAI-compatible format
+  return {
+    choices: [{ message: { content: text } }]
+  };
+}
+
+// ── CATEGORY TEMPLATES ──────────────────────────────────
+const CATEGORY_TEMPLATES = {
+  'Drip Irrigation': {
+    required: ['Flow Rate', 'Spacing', 'Pressure Range', 'Tubing Diameter', 'Material', 'UV Resistant', 'Color', 'Connection Type', 'Emitter Type', 'Max Run Length'],
+    optional: ['GPH per Emitter', 'Wall Thickness', 'Filter Required', 'Certifications', 'Operating Temperature']
+  },
+  'Spray Heads': {
+    required: ['Pop-up Height', 'Arc', 'Radius', 'Nozzle Type', 'Inlet Size', 'Flow Rate', 'Pressure Range', 'Material', 'Pattern'],
+    optional: ['Check Valve', 'Wiper Seal', 'Spring Retraction', 'Color', 'Certifications']
+  },
+  'Controllers': {
+    required: ['Zones', 'Voltage', 'WiFi Enabled', 'Programming Method', 'Weather Resistance', 'Indoor/Outdoor', 'Mounting Type', 'Power Source'],
+    optional: ['Rain Sensor Compatible', 'Bluetooth', 'Flow Sensing', 'Hot Swap Module', 'Display Type', 'Wire Gauge', 'Certifications']
+  },
+  'Valves': {
+    required: ['Size', 'Voltage', 'Flow Rate', 'Pressure Range', 'Connection Type', 'Normally Open/Closed', 'Material'],
+    optional: ['Manual Override', 'Flow Control', 'DC Latching', 'Certifications', 'Operating Temperature']
+  },
+  'Sensors': {
+    required: ['Sensor Type', 'Compatibility', 'Mounting Style', 'Power Source', 'Signal Type', 'Weather Resistance'],
+    optional: ['Wireless Range', 'Battery Life', 'Certifications', 'Operating Temperature']
+  },
+  'Filters': {
+    required: ['Filter Type', 'Mesh Size', 'Flow Rate', 'Inlet/Outlet Size', 'Max Pressure', 'Material'],
+    optional: ['Self-Cleaning', 'Flush Valve', 'Screen Material', 'Certifications']
+  },
+  'Accessories': {
+    required: ['Accessory Type', 'Compatibility', 'Material', 'Size'],
+    optional: ['Color', 'UV Resistant', 'Certifications']
+  },
+  'Nozzle Kits': {
+    required: ['Nozzle Type', 'Arc Options', 'Radius Range', 'Pressure Range', 'Inlet Thread', 'Color Coding'],
+    optional: ['Flow Rate', 'Pieces Included', 'Compatible Heads', 'Certifications']
+  },
+  'Sprinkler Heads': {
+    required: ['Pop-up Height', 'Arc', 'Radius', 'Nozzle Type', 'Inlet Size', 'Flow Rate', 'Pressure Range', 'Material', 'Drive Type'],
+    optional: ['Check Valve', 'Wiper Seal', 'Pattern', 'Color', 'Certifications']
+  },
+  'Pipes & Fittings': {
+    required: ['Size', 'Material', 'Pressure Rating', 'Connection Type', 'Length'],
+    optional: ['Schedule', 'Color', 'NSF Rated', 'Certifications']
+  },
+  'LED Fixtures': {
+    required: ['Wattage', 'Lumen Output', 'Color Temperature', 'Voltage', 'Material', 'IP Rating', 'Beam Angle'],
+    optional: ['Dimmable', 'Finish', 'Mounting Type', 'Certifications']
+  },
+  'Transformers': {
+    required: ['Wattage', 'Input Voltage', 'Output Voltage', 'Material', 'Timer Type', 'Outdoor Rated'],
+    optional: ['Number of Circuits', 'Photocell', 'Certifications']
+  }
+};
+
 // Ensure uploads dir exists
 if (!fs.existsSync('uploads')) fs.mkdirSync('uploads');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+if (!process.env.OPENAI_API_KEY) console.warn('WARNING: OPENAI_API_KEY not set — will rely on Gemini fallback');
+if (!process.env.GOOGLE_AI_API_KEY) console.warn('WARNING: GOOGLE_AI_API_KEY not set — Gemini fallback disabled');
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -47,7 +255,7 @@ app.post('/api/ingest/pdf', upload.array('files', 20), async (req, res) => {
       `--- PDF ${i + 1}: "${pdf.fileName}" ---\n${pdf.text}`
     ).join('\n\n');
 
-    const response = await openai.chat.completions.create({
+    const response = await callAI({
       model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [{
@@ -87,7 +295,7 @@ If a single PDF contains multiple products, create a separate entry for each pro
     });
 
     // Cleanup uploaded files
-    files.forEach(file => { try { fs.unlinkSync(file.path); } catch(e) {} });
+    files.forEach(file => { try { fs.unlinkSync(file.path); } catch(e) { console.warn('Cleanup failed:', e.message); } });
 
     const result = JSON.parse(response.choices[0].message.content);
     const products = result.products || [result];
@@ -105,7 +313,7 @@ If a single PDF contains multiple products, create a separate entry for each pro
     res.json({ success: true, source: 'pdf', data: { products }, count: products.length });
   } catch (err) {
     console.error('PDF ingestion error:', err);
-    (req.files || []).forEach(file => { try { fs.unlinkSync(file.path); } catch(e) {} });
+    (req.files || []).forEach(file => { try { fs.unlinkSync(file.path); } catch(e) { console.warn('Cleanup failed:', e.message); } });
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -137,7 +345,7 @@ app.post('/api/ingest/image', upload.array('files', 20), async (req, res) => {
       });
     });
 
-    const response = await openai.chat.completions.create({
+    const response = await callAI({
       model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [{
@@ -169,7 +377,7 @@ For EACH image, create a separate product entry in the products array. Read ALL 
     });
 
     // Cleanup uploaded files
-    files.forEach(file => { try { fs.unlinkSync(file.path); } catch(e) {} });
+    files.forEach(file => { try { fs.unlinkSync(file.path); } catch(e) { console.warn('Cleanup failed:', e.message); } });
 
     const result = JSON.parse(response.choices[0].message.content);
 
@@ -186,7 +394,7 @@ For EACH image, create a separate product entry in the products array. Read ALL 
   } catch (err) {
     console.error('Image ingestion error:', err);
     // Cleanup on error
-    (req.files || []).forEach(file => { try { fs.unlinkSync(file.path); } catch(e) {} });
+    (req.files || []).forEach(file => { try { fs.unlinkSync(file.path); } catch(e) { console.warn('Cleanup failed:', e.message); } });
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -196,7 +404,7 @@ app.post('/api/ingest/web', async (req, res) => {
   try {
     const { query } = req.body;
 
-    const response = await openai.chat.completions.create({
+    const response = await callAI({
       model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [{
@@ -233,35 +441,41 @@ Focus on landscape supply products: irrigation controllers, sprinklers, drainage
   }
 });
 
-// 3d: Auto Category Identification
+// 3d: Auto Category Identification (uses KB taxonomy)
 app.post('/api/ingest/categorize', async (req, res) => {
   try {
     const { productData } = req.body;
 
-    const response = await openai.chat.completions.create({
+    // Build taxonomy from KB
+    let taxonomySample = '';
+    try {
+      const kb = loadKB();
+      // Send a representative sample of categories (first 100 leaf paths)
+      taxonomySample = kb.categories.slice(0, 100).map(c => `${c.path} [ID:${c.classId}]`).join('\n');
+    } catch (e) {
+      taxonomySample = 'Irrigation>Controllers>Residential, Irrigation>Valves>Inline, Irrigation>Drip Irrigation>Emitter Tubing, etc.';
+    }
+
+    const response = await callAI({
       model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [{
         role: 'system',
-        content: `You are PC2's category identification engine for SiteOne Landscape Supply. Given product data, identify the most appropriate category and class from SiteOne's taxonomy.
+        content: `You are PC2's category identification engine for SiteOne Landscape Supply. Given product data, identify the most appropriate category and class from SiteOne's Knowledge Base taxonomy.
 
-SiteOne categories include:
-- Irrigation > Controllers, Valves, Sprinkler Heads, Drip Irrigation, Pipes & Fittings, Sensors, Wire & Accessories
-- Outdoor Lighting > LED Fixtures, Transformers, Accessories, Path Lights, Spot Lights
-- Nursery > Trees, Shrubs, Perennials, Annuals, Ground Cover
-- Hardscape > Pavers, Retaining Walls, Natural Stone, Edging, Polymeric Sand
-- Drainage > Channel Drains, Catch Basins, Drain Pipe, Fittings
-- Agronomics > Fertilizers, Seed, Soil Amendments, Pest Control
-- Equipment > Power Equipment, Hand Tools, Safety Gear
-- Snow & Ice > De-icers, Plows, Spreaders
+Match to the EXACT class paths below. Use the closest match.
+
+=== SiteOne KB Category Taxonomy (sample) ===
+${taxonomySample}
 
 Return JSON:
 {
-  "category": "...",
-  "class": "...",
+  "category": "full path e.g. Irrigation>Drip Irrigation>Emitter Tubing",
+  "class": "leaf class name",
+  "classId": class ID number,
   "confidence": 0.0-1.0,
   "reasoning": "brief explanation",
-  "alternative_categories": [{ "category": "...", "class": "...", "confidence": 0.0-1.0 }]
+  "alternative_categories": [{ "category": "...", "class": "...", "classId": 0, "confidence": 0.0-1.0 }]
 }`
       }, {
         role: 'user',
@@ -284,7 +498,7 @@ app.post('/api/enrich/attributes', async (req, res) => {
   try {
     const { productData, category } = req.body;
 
-    const response = await openai.chat.completions.create({
+    const response = await callAI({
       model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [{
@@ -350,7 +564,7 @@ app.post('/api/enrich/image-analysis', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No image provided (base64 or URL required)' });
     }
 
-    const response = await openai.chat.completions.create({
+    const response = await callAI({
       model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [{
@@ -401,7 +615,7 @@ app.post('/api/enrich/copy', async (req, res) => {
   try {
     const { productData } = req.body;
 
-    const response = await openai.chat.completions.create({
+    const response = await callAI({
       model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [{
@@ -455,7 +669,7 @@ You can:
 
 Respond conversationally but precisely. Include specific numbers and product counts. When asked to fix issues, describe the fix process and results. Format responses with clear sections.`;
 
-    const response = await openai.chat.completions.create({
+    const response = await callAI({
       model: 'gpt-4o',
       messages: [
         { role: 'system', content: systemMessage },
@@ -503,7 +717,7 @@ app.post('/api/ingest/deduplicate', async (req, res) => {
   try {
     const { products } = req.body;
 
-    const response = await openai.chat.completions.create({
+    const response = await callAI({
       model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [{
@@ -554,10 +768,38 @@ app.post('/api/ingest/bulk/parse', upload.single('file'), async (req, res) => {
   try {
     const XLSX = require('xlsx');
     const filePath = req.file.path;
+
+    // Validate MIME type — must be an Excel file
+    const allowedMimeTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/octet-stream'
+    ];
+    const allowedExtensions = ['.xlsx', '.xls', '.csv'];
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (!allowedMimeTypes.includes(req.file.mimetype) && !allowedExtensions.includes(ext)) {
+      try { fs.unlinkSync(filePath); } catch(e) { console.warn('Cleanup failed:', e.message); }
+      return res.status(400).json({ success: false, error: `Invalid file type "${req.file.mimetype}". Please upload an Excel file (.xlsx, .xls) or CSV.` });
+    }
+
     const wb = XLSX.readFile(filePath);
     const ws = wb.Sheets[wb.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(ws);
     fs.unlinkSync(filePath);
+
+    // Validate that the spreadsheet has data and recognizable columns
+    if (!data || data.length === 0) {
+      return res.status(400).json({ success: false, error: 'The uploaded spreadsheet has no data rows. Please ensure the file contains at least one product row.' });
+    }
+    const columnNames = Object.keys(data[0]);
+    const recognizedColumns = ['SKU', 'Product Name', 'Product Title', 'product_name'];
+    const hasRecognizedColumn = columnNames.some(col => recognizedColumns.includes(col));
+    if (!hasRecognizedColumn) {
+      return res.status(400).json({
+        success: false,
+        error: `No recognizable columns found. Expected at least one of: ${recognizedColumns.join(', ')}. Found columns: ${columnNames.join(', ')}`
+      });
+    }
 
     const products = data.map((row, i) => ({
       index: i,
@@ -567,13 +809,14 @@ app.post('/api/ingest/bulk/parse', upload.single('file'), async (req, res) => {
       feature_bullets: row['Feature Bullets'] || row['Features'] || '',
       pdf_urls: (row.pdf || row['PDF Spec Sheet URL'] || row['PDF URL'] || row['pdf_url'] || '').split(',').map(u => u.trim()).filter(Boolean),
       image_urls: (row.images || row['Image URL'] || row['Image'] || row['image_url'] || '').split(',').map(u => u.trim()).filter(Boolean),
+      pdp_url: row['PDP Page Link'] || row['PDP URL'] || row['pdp_url'] || row['Product Page'] || '',
       status: 'pending'
     }));
 
     res.json({ success: true, data: { products, total: products.length } });
   } catch (err) {
     console.error('Bulk parse error:', err);
-    if (req.file) try { fs.unlinkSync(req.file.path); } catch(e) {}
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch(e) { console.warn('Cleanup failed:', e.message); }
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -626,7 +869,7 @@ Product Name: ${product.product_name}`;
       });
     }
 
-    const response = await openai.chat.completions.create({
+    const response = await callAI({
       model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [{
@@ -683,12 +926,751 @@ Be thorough — extract every possible attribute. Include material, dimensions, 
   }
 });
 
+// ── BULK WIZARD ENDPOINTS ─────────────────────────────────
+
+// 1c: Batch categorize all products in one GPT-4o call
+app.post('/api/ingest/bulk/categorize-batch', async (req, res) => {
+  try {
+    const { products } = req.body;
+    if (!products || products.length === 0) {
+      return res.status(400).json({ success: false, error: 'No products provided' });
+    }
+
+    // Build real category taxonomy from KB
+    let categoryTaxonomy = '';
+    try {
+      const kb = loadKB();
+      // Group by top-level category
+      const grouped = {};
+      kb.categories.forEach(c => {
+        const parts = c.path.split('>').map(s => s.trim());
+        const top = parts[0] || 'Other';
+        if (!grouped[top]) grouped[top] = [];
+        grouped[top].push({ path: c.path, classId: c.classId });
+      });
+      // Build compact list (limit to keep prompt reasonable)
+      const lines = [];
+      Object.entries(grouped).forEach(([top, classes]) => {
+        const classNames = classes.map(c => {
+          const parts = c.path.split('>').map(s => s.trim());
+          return `${parts.slice(1).join(' > ')} [ID:${c.classId}]`;
+        });
+        lines.push(`${top}:\n  ${classNames.join('\n  ')}`);
+      });
+      categoryTaxonomy = lines.join('\n');
+    } catch (kbErr) {
+      // Fallback to basic categories if KB not available
+      categoryTaxonomy = `Irrigation: Controllers, Valves, Sprinkler Heads, Spray Heads, Drip Irrigation, Pipes & Fittings, Sensors, Nozzle Kits, Filters, Accessories
+Outdoor Lighting: LED Fixtures, Transformers, Path Lights, Spot Lights
+Nursery: Trees, Shrubs, Perennials, Annuals
+Hardscape: Pavers, Retaining Walls, Natural Stone, Edging
+Drainage: Channel Drains, Catch Basins, Drain Pipe
+Agronomics: Fertilizers, Seed, Soil Amendments, Pest Control
+Equipment: Power Equipment, Hand Tools, Safety Gear`;
+    }
+
+    const productList = products.map((p, i) => `${i + 1}. SKU: ${p.product_id} | Name: ${p.product_name} | Description: ${(p.description || '').substring(0, 200)}`).join('\n');
+
+    const response = await callAI({
+      model: 'gpt-4o',
+      response_format: { type: 'json_object' },
+      messages: [{
+        role: 'system',
+        content: `You are PC2's batch category identification engine for SiteOne Landscape Supply. Given a list of products, identify the EXACT category class from SiteOne's Knowledge Base taxonomy below.
+
+IMPORTANT: You MUST match products to one of the EXACT class paths and class IDs listed below. Do NOT invent categories — use the closest match from this taxonomy.
+
+=== SiteOne Category Taxonomy (${(() => { try { return loadKB().stats.totalCategories; } catch(e) { return '500+'; } })() } classes) ===
+${categoryTaxonomy}
+
+Return JSON:
+{
+  "categories": [
+    {
+      "index": 0,
+      "sku": "...",
+      "product_name": "...",
+      "category": "full path e.g. Irrigation>Drip Irrigation>Emitter Tubing",
+      "class": "leaf class name",
+      "classId": class ID number from taxonomy,
+      "confidence": 0.0-1.0,
+      "reasoning": "brief reason for this classification"
+    }
+  ]
+}`
+      }, {
+        role: 'user',
+        content: `Categorize these ${products.length} products into SiteOne's taxonomy:\n${productList}`
+      }]
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('Batch categorize error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 1d: Get templates for categories (KB lookup — zero API calls)
+app.post('/api/ingest/bulk/get-templates', (req, res) => {
+  try {
+    const { products } = req.body;
+    if (!products || products.length === 0) {
+      return res.status(400).json({ success: false, error: 'No products provided' });
+    }
+
+    let kb;
+    try { kb = loadKB(); } catch (e) { kb = null; }
+
+    const templates = products.map(p => {
+      const cls = p.class || '';
+      const classId = p.classId || '';
+
+      // Try KB lookup first — find attributes for this classId or matching class name
+      let required = [];
+      let optional = [];
+      let kbSource = false;
+
+      if (kb) {
+        // Try by classId
+        let kbAttrs = [];
+        if (classId) {
+          kbAttrs = kb.attributes.filter(a => String(a.classId) === String(classId));
+        }
+        // Fallback: try matching by class path
+        if (kbAttrs.length === 0 && cls) {
+          const matchingCat = kb.categories.find(c =>
+            c.path.toLowerCase().includes(cls.toLowerCase())
+          );
+          if (matchingCat) {
+            kbAttrs = kb.attributes.filter(a => String(a.classId) === String(matchingCat.classId));
+          }
+        }
+
+        if (kbAttrs.length > 0) {
+          required = kbAttrs.filter(a => a.mandatory === 'Yes').map(a => a.name);
+          optional = kbAttrs.filter(a => a.mandatory !== 'Yes').map(a => a.name);
+          kbSource = true;
+        }
+      }
+
+      // Fallback to hardcoded CATEGORY_TEMPLATES if KB had no match
+      if (!kbSource) {
+        const template = CATEGORY_TEMPLATES[cls] || CATEGORY_TEMPLATES['Accessories'] || { required: [], optional: [] };
+        required = template.required;
+        optional = template.optional;
+      }
+
+      return {
+        index: p.index,
+        sku: p.sku || p.product_id,
+        product_name: p.product_name,
+        category: p.category,
+        class: cls,
+        classId: classId,
+        source: kbSource ? 'Knowledge Base' : 'Default Template',
+        template: {
+          required,
+          optional
+        }
+      };
+    });
+
+    res.json({ success: true, data: { templates } });
+  } catch (err) {
+    console.error('Get templates error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 1e: Extract data for a single product (PDF + image + GPT-4o)
+app.post('/api/ingest/bulk/extract-data', async (req, res) => {
+  try {
+    const { product, template } = req.body;
+    if (!product) {
+      return res.status(400).json({ success: false, error: 'No product provided' });
+    }
+
+    const requiredAttrs = (template && template.required) || [];
+    const optionalAttrs = (template && template.optional) || [];
+    const allAttrs = [...requiredAttrs, ...optionalAttrs];
+
+    // Try to fetch PDF text
+    let pdfText = '';
+    if (product.pdf_urls && product.pdf_urls.length > 0) {
+      try {
+        const pdfParse = require('pdf-parse');
+        const pdfUrl = product.pdf_urls[0];
+        const pdfResponse = await fetch(pdfUrl);
+        if (pdfResponse.ok) {
+          const buffer = Buffer.from(await pdfResponse.arrayBuffer());
+          const pdfData = await pdfParse(buffer);
+          pdfText = pdfData.text.substring(0, 6000);
+        }
+      } catch (pdfErr) {
+        console.log('PDF fetch failed:', pdfErr.message);
+      }
+    }
+
+    // Try to fetch image
+    let imageContent = null;
+    if (product.image_urls && product.image_urls.length > 0) {
+      try {
+        const imgUrl = product.image_urls[0];
+        const imgResponse = await fetch(imgUrl);
+        if (imgResponse.ok) {
+          const buffer = Buffer.from(await imgResponse.arrayBuffer());
+          const base64 = buffer.toString('base64');
+          const contentType = imgResponse.headers.get('content-type') || 'image/jpeg';
+          imageContent = { base64, contentType };
+        }
+      } catch (imgErr) {
+        console.log('Image fetch failed:', imgErr.message);
+      }
+    }
+
+    // Build prompt
+    const userParts = [];
+    let promptText = `Extract product attributes for this product. Map values to the template fields provided.
+
+Product: ${product.product_name}
+SKU: ${product.product_id}
+Description: ${product.description || 'N/A'}
+
+REQUIRED attributes to extract: ${requiredAttrs.join(', ')}
+OPTIONAL attributes to extract: ${optionalAttrs.join(', ')}`;
+
+    if (pdfText) {
+      promptText += `\n\nPDF TEXT:\n${pdfText}`;
+    }
+
+    userParts.push({ type: 'text', text: promptText });
+
+    if (imageContent) {
+      userParts.push({
+        type: 'image_url',
+        image_url: { url: `data:${imageContent.contentType};base64,${imageContent.base64}` }
+      });
+    }
+
+    const response = await callAI({
+      model: 'gpt-4o',
+      response_format: { type: 'json_object' },
+      messages: [{
+        role: 'system',
+        content: `You are PC2's data extraction engine. Extract attribute values from the provided sources (PDF text, image, description) and map them to the template fields.
+
+IMPORTANT: Many attributes will be found in MULTIPLE sources. For example, "Color" might be visible in the product image AND stated in the PDF. Always list ALL sources where you found evidence for the attribute value.
+
+Return JSON:
+{
+  "product_name": "...",
+  "brand": "...",
+  "model_number": "...",
+  "attributes": {
+    "Attribute Name": {
+      "value": "extracted value or null if not found",
+      "confidence": 0.0-1.0,
+      "sources": ["pdf", "image", "description", "inferred"],
+      "required": true/false
+    }
+  },
+  "missing_attributes": ["list of required attributes that could not be found"],
+  "extraction_summary": "brief summary of what was extracted and from where"
+}
+
+For the "sources" array, include EVERY source where the attribute was found or confirmed:
+- "pdf" — value found in PDF text
+- "image" — value visible in product image
+- "description" — value found in product description text
+- "inferred" — value inferred from other attributes or category knowledge
+An attribute can have multiple sources, e.g. ["pdf", "image"] if confirmed in both.`
+      }, {
+        role: 'user',
+        content: userParts
+      }]
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+    result._productId = product.product_id;
+    result._imageUrl = product.image_urls ? product.image_urls[0] : null;
+
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('Extract data error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 1f: Gap fill from PDP page
+app.post('/api/enrich/gap-fill', async (req, res) => {
+  try {
+    const { product, missingAttributes, pdpUrl, pdfUrls, imageUrls } = req.body;
+
+    let pdpText = '';
+    let source = 'none';
+
+    // Try PDP URL first
+    if (pdpUrl) {
+      try {
+        const pdpResponse = await fetch(pdpUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PC2Bot/2.0)' }
+        });
+        if (pdpResponse.ok) {
+          const html = await pdpResponse.text();
+          // Strip HTML tags, keep text
+          pdpText = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .substring(0, 8000);
+          source = 'pdp_page';
+        }
+      } catch (pdpErr) {
+        console.log('PDP fetch failed:', pdpErr.message);
+      }
+    }
+
+    // Fall back to PDF if PDP failed
+    if (!pdpText && pdfUrls && pdfUrls.length > 0) {
+      try {
+        const pdfParse = require('pdf-parse');
+        const pdfResponse = await fetch(pdfUrls[0]);
+        if (pdfResponse.ok) {
+          const buffer = Buffer.from(await pdfResponse.arrayBuffer());
+          const pdfData = await pdfParse(buffer);
+          pdpText = pdfData.text.substring(0, 6000);
+          source = 'pdf_reanalysis';
+        }
+      } catch (pdfErr) {
+        console.log('PDF fallback failed:', pdfErr.message);
+      }
+    }
+
+    if (!pdpText && !missingAttributes) {
+      return res.json({ success: true, data: { filled: {}, source: 'none', message: 'No data source available' } });
+    }
+
+    const response = await callAI({
+      model: 'gpt-4o',
+      response_format: { type: 'json_object' },
+      messages: [{
+        role: 'system',
+        content: `You are PC2's gap-fill engine. Given product context and page/document text, find the values for the missing attributes listed.
+
+Return JSON:
+{
+  "filled": {
+    "Attribute Name": {
+      "value": "...",
+      "confidence": 0.0-1.0,
+      "source": "${source}"
+    }
+  },
+  "still_missing": ["attributes still not found"],
+  "source_used": "${source}"
+}`
+      }, {
+        role: 'user',
+        content: `Product: ${product.product_name} (${product.product_id})
+Missing attributes: ${(missingAttributes || []).join(', ')}
+
+Source text (${source}):
+${pdpText || 'No text available — try to infer from product name and description: ' + (product.description || '')}`
+      }]
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('Gap fill error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 1g: Generate lifestyle image via Google Imagen 3
+app.post('/api/enrich/generate-image', async (req, res) => {
+  const { productName, description, category } = req.body;
+  const prompt = `Professional lifestyle product photo of ${productName}. ${description || ''}. Category: ${category || 'irrigation'}. Clean white or natural outdoor background, professional product photography lighting, high quality commercial catalog image.`;
+
+  let imageBase64 = null;
+  let mimeType = 'image/png';
+  let provider = '';
+
+  // ── Try 1: Gemini Flash Image Generation ──
+  try {
+    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) throw new Error('No GOOGLE_AI_API_KEY');
+
+    console.log('Image gen: trying Gemini Flash...');
+    const geminiImageModel = 'gemini-2.0-flash-preview-image-generation';
+    const geminiImageUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiImageModel}:generateContent?key=${apiKey}`;
+
+    const response = await fetch(geminiImageUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseModalities: ['IMAGE', 'TEXT'],
+          imageConfig: { imageSize: '1K' }
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini ${response.status}: ${errText.substring(0, 200)}`);
+    }
+
+    const result = await response.json();
+    const parts = result.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.inlineData && part.inlineData.data) {
+        imageBase64 = part.inlineData.data;
+        mimeType = part.inlineData.mimeType || 'image/png';
+      }
+    }
+
+    if (imageBase64) {
+      provider = 'Gemini 2.0 Flash';
+    } else {
+      throw new Error('Gemini returned no image data');
+    }
+  } catch (geminiErr) {
+    console.log(`Gemini image gen failed (${geminiErr.message}), trying OpenAI...`);
+  }
+
+  // ── Try 2: OpenAI gpt-4.1-mini with image_generation tool ──
+  if (!imageBase64) {
+    try {
+      console.log('Image gen: trying OpenAI gpt-4.1-mini...');
+      const response = await openai.responses.create({
+        model: 'gpt-4.1-mini',
+        input: prompt,
+        tools: [{ type: 'image_generation' }]
+      });
+
+      // Find image in output
+      const imageOutput = (response.output || []).find(o => o.type === 'image_generation_call');
+      if (imageOutput && imageOutput.result) {
+        imageBase64 = imageOutput.result;
+        mimeType = 'image/png';
+        provider = 'OpenAI gpt-4.1-mini';
+      } else {
+        throw new Error('OpenAI returned no image output');
+      }
+    } catch (openaiErr) {
+      console.log(`OpenAI image gen failed (${openaiErr.message})`);
+    }
+  }
+
+  if (!imageBase64) {
+    return res.status(500).json({ success: false, error: 'Both Gemini and OpenAI image generation failed' });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      imageBase64: imageBase64,
+      mimeType: mimeType,
+      prompt: prompt,
+      provider: provider
+    }
+  });
+});
+
+// 1h: Product DQ Check
+app.post('/api/athena/dq-check', async (req, res) => {
+  try {
+    const { product, template } = req.body;
+    if (!product) {
+      return res.status(400).json({ success: false, error: 'No product provided' });
+    }
+
+    const attrs = product.attributes || {};
+    const requiredAttrs = (template && template.required) || [];
+    const allAttrKeys = Object.keys(attrs);
+
+    // ── Basic checks (pure JS) ──
+    // Completeness: what % of required attrs are filled?
+    let filledRequired = 0;
+    const missingRequired = [];
+    requiredAttrs.forEach(attr => {
+      const found = allAttrKeys.find(k => k.toLowerCase() === attr.toLowerCase());
+      if (found && attrs[found] && attrs[found].value && attrs[found].value !== 'null' && attrs[found].value !== 'N/A') {
+        filledRequired++;
+      } else {
+        missingRequired.push(attr);
+      }
+    });
+    const completenessScore = requiredAttrs.length > 0 ? Math.round((filledRequired / requiredAttrs.length) * 100) : 100;
+
+    // Format validation: check for obvious issues
+    let formatIssues = [];
+    Object.entries(attrs).forEach(([key, val]) => {
+      const v = typeof val === 'object' ? val.value : val;
+      if (v && typeof v === 'string') {
+        if (v.length > 500) formatIssues.push(`${key}: value too long (${v.length} chars)`);
+        if (/^\d+$/.test(v) && (key.toLowerCase().includes('name') || key.toLowerCase().includes('description'))) {
+          formatIssues.push(`${key}: numeric value in text field`);
+        }
+      }
+    });
+    const formatScore = Math.max(0, 100 - (formatIssues.length * 15));
+
+    // Range validation: check numeric values are in reasonable ranges
+    let rangeIssues = [];
+    Object.entries(attrs).forEach(([key, val]) => {
+      const v = typeof val === 'object' ? val.value : val;
+      if (v && typeof v === 'string') {
+        const num = parseFloat(v.replace(/[^0-9.-]/g, ''));
+        if (!isNaN(num)) {
+          if (key.toLowerCase().includes('pressure') && (num < 0 || num > 300)) rangeIssues.push(`${key}: ${v} outside typical range`);
+          if (key.toLowerCase().includes('voltage') && (num < 0 || num > 480)) rangeIssues.push(`${key}: ${v} outside typical range`);
+          if (key.toLowerCase().includes('flow') && num < 0) rangeIssues.push(`${key}: negative flow rate`);
+        }
+      }
+    });
+    const rangeScore = Math.max(0, 100 - (rangeIssues.length * 20));
+
+    // ── Advanced checks (GPT-4o call) ──
+    const response = await callAI({
+      model: 'gpt-4o',
+      response_format: { type: 'json_object' },
+      messages: [{
+        role: 'system',
+        content: `You are PC2's advanced DQ engine. Analyze the product data for:
+1. Cross-attribute consistency — do the attributes make sense together?
+2. Copy quality — is the product name/description professional and complete?
+
+Return JSON:
+{
+  "consistency_score": 0-100,
+  "consistency_issues": ["list of inconsistency issues found"],
+  "copy_quality_score": 0-100,
+  "copy_issues": ["list of copy quality issues"],
+  "recommendations": ["actionable suggestions to improve data quality"]
+}`
+      }, {
+        role: 'user',
+        content: `Product: ${product.product_name} (${product.product_id})
+Category: ${product.category || 'Unknown'}
+Description: ${(product.description || '').substring(0, 500)}
+Attributes: ${JSON.stringify(attrs, null, 2).substring(0, 3000)}`
+      }]
+    });
+
+    const advanced = JSON.parse(response.choices[0].message.content);
+
+    // Calculate overall score
+    const overallScore = Math.round(
+      (completenessScore * 0.35) +
+      (formatScore * 0.15) +
+      (rangeScore * 0.15) +
+      ((advanced.consistency_score || 75) * 0.20) +
+      ((advanced.copy_quality_score || 75) * 0.15)
+    );
+
+    res.json({
+      success: true,
+      data: {
+        overall_score: overallScore,
+        breakdown: {
+          completeness: { score: completenessScore, missing: missingRequired, weight: '35%' },
+          format: { score: formatScore, issues: formatIssues, weight: '15%' },
+          range: { score: rangeScore, issues: rangeIssues, weight: '15%' },
+          consistency: { score: advanced.consistency_score || 75, issues: advanced.consistency_issues || [], weight: '20%' },
+          copy_quality: { score: advanced.copy_quality_score || 75, issues: advanced.copy_issues || [], weight: '15%' }
+        },
+        recommendations: advanced.recommendations || [],
+        product_id: product.product_id,
+        product_name: product.product_name
+      }
+    });
+  } catch (err) {
+    console.error('DQ check error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Athena DQ Dashboard Data
 app.get('/api/athena/dashboard', (req, res) => {
   res.json({
     success: true,
     data: getDefaultCatalogContext()
   });
+});
+
+// ── KNOWLEDGE BASE ENDPOINTS ─────────────────────────────
+let kbCache = null;
+
+function loadKB() {
+  if (kbCache) return kbCache;
+  const XLSX = require('xlsx');
+  const kbDir = path.join(__dirname, 'kb');
+
+  // Category Master
+  const catWb = XLSX.readFile(path.join(kbDir, 'category_master.xlsx'));
+  const catData = XLSX.utils.sheet_to_json(catWb.Sheets[catWb.SheetNames[0]]);
+  const categories = catData.map(r => ({
+    path: r['Web-Class'] || '',
+    classId: r['Web-Class ID'] || '',
+    imageHeaders: r['Image Headers'] || '',
+    uniqueAttrs: r['Unique Attributes'] || ''
+  }));
+
+  // Attribute Master
+  const attrWb = XLSX.readFile(path.join(kbDir, 'attribute_master.xlsx'));
+  const attrData = XLSX.utils.sheet_to_json(attrWb.Sheets[attrWb.SheetNames[0]]);
+  const attributes = attrData.map(r => ({
+    classId: r['Web-Class ID'] || '',
+    name: r['Attribute Name'] || '',
+    attrId: r['Attribute ID'] || '',
+    mandatory: r['mandatory'] || 'No',
+    sentenceCase: r['sentence_case'] || 'None',
+    spellCheck: r['spell_grammar_check'] || 'No',
+    ruleId: r['rule_id'] || '',
+    rule: r['rule'] || '',
+    ruleType: r['rule_type'] || '',
+    ruleValue: r['rule_value'] || '',
+    ruleDescription: r['rule_description'] || '',
+    defaultValues: r['default_values'] || '',
+    pc2Generation: r['pc2_generation'] || 'No'
+  }));
+
+  // Rules
+  const ruleWb = XLSX.readFile(path.join(kbDir, 'rule_builder_v1.xlsx'));
+  const ruleData = XLSX.utils.sheet_to_json(ruleWb.Sheets[ruleWb.SheetNames[0]]);
+  const rules = ruleData.map(r => ({
+    id: r['Rule Identifier'] || '',
+    name: r['Rule Name'] || '',
+    description: r['Rule Description'] || '',
+    code: r['Rule Code'] || '',
+    scope: r['Rule Scope'] || '',
+    json: r['Rule Json'] || ''
+  }));
+
+  // Build class-to-category lookup
+  const classMap = {};
+  categories.forEach(c => { classMap[c.classId] = c.path; });
+
+  // Build per-class attribute summary
+  const classAttrSummary = {};
+  attributes.forEach(a => {
+    if (!classAttrSummary[a.classId]) classAttrSummary[a.classId] = { total: 0, mandatory: 0, withRules: 0 };
+    classAttrSummary[a.classId].total++;
+    if (a.mandatory === 'Yes') classAttrSummary[a.classId].mandatory++;
+    if (a.ruleId) classAttrSummary[a.classId].withRules++;
+  });
+
+  kbCache = {
+    categories,
+    attributes,
+    rules,
+    classMap,
+    classAttrSummary,
+    stats: {
+      totalCategories: categories.length,
+      totalAttributes: attributes.length,
+      totalRules: rules.length,
+      mandatoryAttrs: attributes.filter(a => a.mandatory === 'Yes').length,
+      attrsWithRules: attributes.filter(a => a.ruleId).length,
+      uniqueClasses: Object.keys(classAttrSummary).length
+    }
+  };
+
+  console.log(`KB loaded: ${kbCache.stats.totalCategories} categories, ${kbCache.stats.totalAttributes} attributes, ${kbCache.stats.totalRules} rules`);
+  return kbCache;
+}
+
+// Load KB on startup
+try { loadKB(); } catch (e) { console.log('KB load deferred:', e.message); }
+
+app.get('/api/kb/stats', (req, res) => {
+  try {
+    const kb = loadKB();
+    res.json({ success: true, data: kb.stats });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/kb/categories', (req, res) => {
+  try {
+    const kb = loadKB();
+    const search = (req.query.search || '').toLowerCase();
+    let cats = kb.categories;
+    if (search) {
+      cats = cats.filter(c => c.path.toLowerCase().includes(search) || String(c.classId).includes(search));
+    }
+    // Enrich with attribute counts
+    cats = cats.map(c => ({
+      ...c,
+      attrCount: (kb.classAttrSummary[c.classId] || {}).total || 0,
+      mandatoryCount: (kb.classAttrSummary[c.classId] || {}).mandatory || 0
+    }));
+    res.json({ success: true, data: { categories: cats.slice(0, 200), total: cats.length } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/kb/attributes', (req, res) => {
+  try {
+    const kb = loadKB();
+    const classId = req.query.classId;
+    const search = (req.query.search || '').toLowerCase();
+    let attrs = kb.attributes;
+    if (classId) attrs = attrs.filter(a => String(a.classId) === String(classId));
+    if (search) attrs = attrs.filter(a => a.name.toLowerCase().includes(search) || (a.ruleDescription || '').toLowerCase().includes(search));
+    res.json({ success: true, data: { attributes: attrs.slice(0, 500), total: attrs.length, classPath: kb.classMap[classId] || '' } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/kb/rules', (req, res) => {
+  try {
+    const kb = loadKB();
+    res.json({ success: true, data: { rules: kb.rules, total: kb.rules.length } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get KB context for LLM prompts (compact summary for a given class)
+app.get('/api/kb/context/:classId', (req, res) => {
+  try {
+    const kb = loadKB();
+    const classId = req.params.classId;
+    const classPath = kb.classMap[classId] || 'Unknown';
+    const attrs = kb.attributes.filter(a => String(a.classId) === String(classId));
+    const mandatory = attrs.filter(a => a.mandatory === 'Yes');
+    const withRules = attrs.filter(a => a.ruleId);
+
+    const context = {
+      classPath,
+      classId,
+      attributeCount: attrs.length,
+      mandatoryAttributes: mandatory.map(a => ({
+        name: a.name,
+        rule: a.ruleDescription || '',
+        defaultValues: a.defaultValues || ''
+      })),
+      validationRules: withRules.slice(0, 20).map(a => ({
+        attribute: a.name,
+        ruleType: a.ruleType,
+        ruleDescription: a.ruleDescription
+      }))
+    };
+
+    res.json({ success: true, data: context });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.listen(PORT, () => {

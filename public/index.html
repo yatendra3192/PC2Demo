@@ -16,8 +16,8 @@
     <div class="header-title">Product Content Creator <span>v2.0</span></div>
   </div>
   <div class="header-right" style="gap:12px;align-items:center;display:flex">
-    <button class="header-icon-btn" onclick="alert('Settings panel coming soon')" title="Settings">&#x2699;</button>
-    <button class="header-icon-btn" onclick="alert('Notifications')" title="Notifications">&#x1F514;</button>
+    <button class="header-icon-btn" title="Settings" disabled style="opacity:0.4;cursor:default">&#x2699;</button>
+    <button class="header-icon-btn" title="Notifications" disabled style="opacity:0.4;cursor:default">&#x1F514;</button>
     <div class="user-profile">
       <div class="user-avatar">Y</div>
       <span class="user-name">Yatendra</span>
@@ -34,17 +34,22 @@
     <div class="nav-item active" data-module="ingestion">
       <span class="nav-icon">&#x1F4E5;</span>
       <span>Ingestion</span>
-      <span class="badge">Tab 1</span>
     </div>
     <div class="nav-item" data-module="enrichment">
       <span class="nav-icon">&#x2728;</span>
       <span>Enrichment</span>
-      <span class="badge">Tab 2</span>
     </div>
     <div class="nav-item" data-module="athena">
       <span class="nav-icon">&#x1F6E1;</span>
       <span>Athena DQ</span>
-      <span class="badge">Tab 3</span>
+    </div>
+    <div class="nav-item" data-module="kb">
+      <span class="nav-icon">&#x1F4DA;</span>
+      <span>Knowledge Base</span>
+    </div>
+    <div class="nav-item" data-module="rulebuilder">
+      <span class="nav-icon">&#x2699;</span>
+      <span>Rule Builder</span>
     </div>
 
     <div class="sidebar-footer">
@@ -237,113 +242,164 @@
         </div>
       </div>
 
-      <!-- 3e: Bulk Upload -->
+      <!-- 3e: Bulk Upload — 4-Step Wizard Pipeline -->
       <div class="sub-panel" id="ingest-bulk">
-        <div class="card">
-          <div class="card-header">
-            <span>Bulk Product Upload</span>
-            <span style="font-size:12px;color:var(--gray-500)">Excel (.xlsx) with product IDs, names, PDF URLs, image URLs</span>
-          </div>
-          <div class="card-body">
-            <div class="upload-zone" id="bulk-upload-zone">
-              <div class="icon">&#x1F4CA;</div>
-              <h3>Drag & drop an Excel file here</h3>
-              <p>Upload .xlsx with columns: product_id, Product Name, pdf, images</p>
-              <input type="file" id="bulk-file-input" accept=".xlsx,.xls,.csv">
-            </div>
-          </div>
-        </div>
 
-        <!-- Parsed products table -->
-        <div class="results-grid" id="bulk-parsed">
-          <div class="flow-indicator" id="bulk-flow-msg">&#x2705; Excel parsed successfully</div>
-
-          <!-- Progress bar -->
-          <div class="card" id="bulk-progress-card" style="display:none">
-            <div class="card-body" style="padding:16px 20px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                <span style="font-size:14px;font-weight:600">Processing Products</span>
-                <span id="bulk-progress-text" style="font-size:13px;color:var(--gray-600)">0 / 0</span>
-              </div>
-              <div style="width:100%;height:8px;background:var(--gray-200);border-radius:4px;overflow:hidden">
-                <div id="bulk-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--red),var(--green));border-radius:4px;transition:width 0.5s ease"></div>
-              </div>
-              <div id="bulk-progress-status" style="font-size:12px;color:var(--gray-500);margin-top:6px">Waiting to start...</div>
-            </div>
-          </div>
-
-          <!-- Summary stats after processing -->
-          <div id="bulk-summary" style="display:none">
-            <div class="dashboard-grid" style="margin-bottom:16px">
-              <div class="stat-card green">
-                <div class="stat-label">Processed</div>
-                <div class="stat-value" id="bulk-stat-processed">0</div>
-                <div class="stat-sub">Products completed</div>
-              </div>
-              <div class="stat-card blue">
-                <div class="stat-label">Avg ACR Score</div>
-                <div class="stat-value" id="bulk-stat-acr">--</div>
-                <div class="stat-sub">Attribute completeness</div>
-              </div>
-              <div class="stat-card red">
-                <div class="stat-label">DQ Issues Found</div>
-                <div class="stat-value" id="bulk-stat-issues">0</div>
-                <div class="stat-sub">Across all products</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Sources panel -->
-          <div id="bulk-sources-container"></div>
-
-          <!-- Products table -->
+        <!-- Upload Zone (shown before wizard starts) -->
+        <div id="bulk-upload-section">
           <div class="card">
             <div class="card-header">
-              <span>Products (<span id="bulk-count">0</span>)</span>
-              <div style="display:flex;gap:8px">
-                <button class="btn btn-sm btn-secondary" id="bulk-dedup-btn" onclick="runBulkDedup()">&#x1F504; Deduplicate</button>
-                <button class="btn btn-success btn-sm" id="bulk-process-btn" onclick="bulkProcessAll()">&#x1F680; Process All Products</button>
-                <button class="btn btn-primary btn-sm" id="bulk-enrich-btn" style="display:none" onclick="sendBulkToEnrichment()">&#x2728; Send All to Enrichment &#x2192;</button>
+              <span>Bulk Product Upload</span>
+              <span style="font-size:12px;color:var(--gray-500)">Excel (.xlsx) with SKU, Title, Description, Image URL, PDF URL, PDP Page Link</span>
+            </div>
+            <div class="card-body">
+              <div class="upload-zone" id="bulk-upload-zone">
+                <div class="icon">&#x1F4CA;</div>
+                <h3>Drag & drop an Excel file here</h3>
+                <p>Upload .xlsx with columns: SKU, Product Title, Description, Image URL, PDF URL, PDP Page Link</p>
+                <input type="file" id="bulk-file-input" accept=".xlsx,.xls,.csv">
               </div>
-            </div>
-            <div class="card-body" style="padding:0;max-height:500px;overflow-y:auto">
-              <table class="attr-table" style="font-size:12px">
-                <thead>
-                  <tr>
-                    <th style="width:30px">#</th>
-                    <th style="width:50px">Image</th>
-                    <th>Product Name</th>
-                    <th style="width:80px">Category</th>
-                    <th style="width:60px">ACR</th>
-                    <th style="width:60px">Sources</th>
-                    <th style="width:80px">Status</th>
-                  </tr>
-                </thead>
-                <tbody id="bulk-table-body"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Expanded product detail -->
-          <div class="card" id="bulk-detail-card" style="display:none;margin-top:16px">
-            <div class="card-header">
-              <span id="bulk-detail-title">Product Details</span>
-              <button class="btn btn-sm btn-secondary" onclick="document.getElementById('bulk-detail-card').style.display='none'">Close</button>
-            </div>
-            <div class="card-body" id="bulk-detail-body"></div>
-          </div>
-
-          <!-- Bulk Deduplication Results -->
-          <div id="bulk-dedup-section" style="display:none;margin-top:16px">
-            <div class="card" style="border-left:4px solid var(--orange);margin-bottom:16px">
-              <div class="card-header">
-                <span>&#x1F504; Deduplication Results</span>
-                <span style="font-size:12px;color:var(--gray-500)" id="bulk-dedup-summary-text"></span>
-              </div>
-              <div class="card-body" id="bulk-dedup-groups"></div>
             </div>
           </div>
         </div>
+
+        <!-- Wizard Container (shown after upload) -->
+        <div id="bulk-wizard" style="display:none">
+
+          <!-- Re-upload bar -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <span style="font-size:13px;color:var(--gray-600)" id="bulk-wizard-file-info"></span>
+            <button class="btn btn-sm btn-secondary" onclick="resetBulkWizard()">&#x1F504; Upload Different File</button>
+          </div>
+
+          <!-- Wizard Navigation Bar -->
+          <div class="wizard-nav">
+            <div class="wizard-step active" data-wiz-step="1" onclick="goToStep(1)">
+              <div class="wizard-step-circle">1</div>
+              <div class="wizard-step-label">Category ID</div>
+            </div>
+            <div class="wizard-connector"></div>
+            <div class="wizard-step" data-wiz-step="2" onclick="goToStep(2)">
+              <div class="wizard-step-circle">2</div>
+              <div class="wizard-step-label">Template Selection</div>
+            </div>
+            <div class="wizard-connector"></div>
+            <div class="wizard-step" data-wiz-step="3" onclick="goToStep(3)">
+              <div class="wizard-step-circle">3</div>
+              <div class="wizard-step-label">Data Extraction</div>
+            </div>
+            <div class="wizard-connector"></div>
+            <div class="wizard-step" data-wiz-step="4" onclick="goToStep(4)">
+              <div class="wizard-step-circle">4</div>
+              <div class="wizard-step-label">Deduplication</div>
+            </div>
+          </div>
+
+          <!-- Step 1: Category Identification -->
+          <div class="wizard-panel active" id="wizard-step-1">
+            <div class="card">
+              <div class="card-header">
+                <span>Step 1: Batch Category Identification</span>
+                <button class="btn btn-success btn-sm" id="wiz-categorize-btn" onclick="runBatchCategorize()">&#x1F916; Categorize All Products</button>
+              </div>
+              <div class="card-body" style="padding:0;max-height:400px;overflow-y:auto">
+                <table class="attr-table" style="font-size:12px">
+                  <thead>
+                    <tr>
+                      <th style="width:30px">#</th>
+                      <th>SKU</th>
+                      <th>Product Name</th>
+                      <th>Category</th>
+                      <th>Class</th>
+                      <th style="width:80px">Confidence</th>
+                    </tr>
+                  </thead>
+                  <tbody id="wiz-cat-table-body"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="wizard-buttons">
+              <span></span>
+              <button class="btn btn-primary" id="wiz-next-1" onclick="goToStep(2)" disabled>Next: Template Selection &#x2192;</button>
+            </div>
+          </div>
+
+          <!-- Step 2: Template Selection -->
+          <div class="wizard-panel" id="wizard-step-2">
+            <div class="card">
+              <div class="card-header">
+                <span>Step 2: Template Selection &mdash; Required Attributes</span>
+                <button class="btn btn-success btn-sm" id="wiz-template-btn" onclick="loadTemplates()">&#x1F4CB; Load Templates</button>
+              </div>
+              <div class="card-body" style="padding:0;max-height:500px;overflow-y:auto">
+                <div id="wiz-templates-container"></div>
+              </div>
+            </div>
+            <div class="wizard-buttons">
+              <button class="btn btn-secondary" onclick="goToStep(1)">&#x2190; Back</button>
+              <button class="btn btn-primary" id="wiz-next-2" onclick="goToStep(3)" disabled>Next: Data Extraction &#x2192;</button>
+            </div>
+          </div>
+
+          <!-- Step 3: Data Extraction -->
+          <div class="wizard-panel" id="wizard-step-3">
+            <div class="card">
+              <div class="card-header">
+                <span>Step 3: Data Extraction</span>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <select class="search-input" id="wiz-extract-product-select" style="flex:none;width:auto;padding:6px 12px;font-size:12px" onchange="showExtractedProduct(parseInt(this.value))"></select>
+                  <button class="btn btn-success btn-sm" id="wiz-extract-btn" onclick="runDataExtraction()">&#x1F680; Extract All Products</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <!-- Progress -->
+                <div id="wiz-extract-progress" style="display:none;margin-bottom:16px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                    <span style="font-size:13px;font-weight:600">Extracting Data</span>
+                    <span id="wiz-extract-progress-text" style="font-size:12px;color:var(--gray-600)">0 / 0</span>
+                  </div>
+                  <div style="width:100%;height:6px;background:var(--gray-200);border-radius:3px;overflow:hidden">
+                    <div id="wiz-extract-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--red),var(--green));border-radius:3px;transition:width 0.4s ease"></div>
+                  </div>
+                </div>
+                <!-- Editable table for current product -->
+                <div id="wiz-extract-table-container">
+                  <div class="empty-state" style="padding:30px">
+                    <div class="icon">&#x1F4E5;</div>
+                    <h3>Click "Extract All Products" to begin</h3>
+                    <p>Each product will be processed using PDF, image, and description data</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="wizard-buttons">
+              <button class="btn btn-secondary" onclick="goToStep(2)">&#x2190; Back</button>
+              <button class="btn btn-primary" id="wiz-next-3" onclick="goToStep(4)" disabled>Next: Deduplication &#x2192;</button>
+            </div>
+          </div>
+
+          <!-- Step 4: Deduplication -->
+          <div class="wizard-panel" id="wizard-step-4">
+            <div class="card">
+              <div class="card-header">
+                <span>Step 4: Deduplication Scan</span>
+                <button class="btn btn-success btn-sm" id="wiz-dedup-btn" onclick="runWizardDedup()">&#x1F50D; Scan for Duplicates</button>
+              </div>
+              <div class="card-body" id="wiz-dedup-container">
+                <div class="empty-state" style="padding:30px">
+                  <div class="icon">&#x1F504;</div>
+                  <h3>Run dedup scan</h3>
+                  <p>Click to scan all products for duplicate records before sending to Enrichment</p>
+                </div>
+              </div>
+            </div>
+            <div class="wizard-buttons">
+              <button class="btn btn-secondary" onclick="goToStep(3)">&#x2190; Back</button>
+              <button class="btn btn-primary" id="wiz-finish-btn" onclick="finishWizard()">&#x2728; Send to Enrichment &#x2192;</button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -382,6 +438,7 @@
           <div class="sub-tab active" data-subtab="enrich-attrs">&#x1F9E9; Attribute Gap Filling</div>
           <div class="sub-tab" data-subtab="enrich-image">&#x1F441; Image Enrichment</div>
           <div class="sub-tab" data-subtab="enrich-copy">&#x270D; Copy Generation</div>
+          <div class="sub-tab" data-subtab="enrich-imagen">&#x1F3A8; Image Generation</div>
         </div>
 
         <!-- 4a: Attributes -->
@@ -479,6 +536,35 @@
             </div>
           </div>
         </div>
+        <!-- 4d: Image Generation -->
+        <div class="sub-panel" id="enrich-imagen">
+          <div class="card">
+            <div class="card-header">
+              <span>Lifestyle Image Generation</span>
+              <span style="font-size:12px;color:var(--gray-500)">Powered by Google Imagen 3</span>
+            </div>
+            <div class="card-body">
+              <p style="margin-bottom:16px;font-size:14px;color:var(--gray-600)">
+                Generate a professional lifestyle product image from the product name, description, and category.
+              </p>
+              <div style="margin-bottom:16px">
+                <label style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px">Custom Prompt (optional)</label>
+                <textarea class="search-input" id="imagen-prompt" rows="3" style="width:100%;resize:vertical;font-family:inherit" placeholder="Override prompt — leave blank to auto-generate from product data"></textarea>
+              </div>
+              <button class="btn btn-primary" id="gen-image-btn" onclick="generateLifestyleImage()">&#x1F3A8; Generate Lifestyle Image</button>
+            </div>
+          </div>
+          <div class="results-grid" id="imagen-results">
+            <div class="flow-indicator">&#x2705; Lifestyle image generated via Google Imagen 3</div>
+            <div class="card">
+              <div class="card-header">Generated Image</div>
+              <div class="card-body" style="text-align:center">
+                <div id="imagen-preview" style="margin-bottom:16px"></div>
+                <div id="imagen-prompt-used" style="font-size:12px;color:var(--gray-500);padding:10px;background:var(--gray-50);border-radius:var(--radius)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div id="enrichment-done" style="display:none;margin-top:20px">
@@ -497,89 +583,111 @@
 
       <div class="sub-tabs">
         <div class="sub-tab active" data-subtab="athena-dashboard">&#x1F4CA; DQ Dashboard</div>
+        <div class="sub-tab" data-subtab="athena-product-dq">&#x1F50D; Product DQ</div>
         <div class="sub-tab" data-subtab="athena-cdi">&#x1F4AC; CDI (Conversational)</div>
         <div class="sub-tab" data-subtab="athena-godmode">&#x26A1; God Mode</div>
       </div>
 
-      <!-- 5: Dashboard -->
+      <!-- 5: Dashboard (dynamic — populated from processed products) -->
       <div class="sub-panel active" id="athena-dashboard">
-        <div class="dashboard-grid">
-          <div class="stat-card blue">
-            <div class="stat-label">Total SKUs</div>
-            <div class="stat-value">147,520</div>
-            <div class="stat-sub">Across all categories</div>
-          </div>
-          <div class="stat-card green">
-            <div class="stat-label">Overall ACR</div>
-            <div class="stat-value">71.3%</div>
-            <div class="stat-sub">Attribute Completeness Rate</div>
-          </div>
-          <div class="stat-card red">
-            <div class="stat-label">Open DQ Issues</div>
-            <div class="stat-value">12,678</div>
-            <div class="stat-sub">Across 9 categories</div>
-          </div>
+        <!-- Empty state when no products processed yet -->
+        <div id="athena-dash-empty" class="empty-state" style="padding:40px">
+          <div class="icon">&#x1F6E1;</div>
+          <h3>No products processed yet</h3>
+          <p>Upload products through Ingestion, run them through Enrichment, then come here to see real DQ metrics.</p>
         </div>
 
-        <div class="card">
-          <div class="card-header">ACR by Category</div>
-          <div class="card-body" id="category-bars">
-            <!-- populated by JS -->
+        <!-- Dynamic dashboard (hidden until products exist) -->
+        <div id="athena-dash-content" style="display:none">
+          <div class="dashboard-grid">
+            <div class="stat-card blue">
+              <div class="stat-label">Total SKUs Processed</div>
+              <div class="stat-value" id="dash-total-skus">0</div>
+              <div class="stat-sub">Through ingestion pipeline</div>
+            </div>
+            <div class="stat-card green">
+              <div class="stat-label">Overall ACR</div>
+              <div class="stat-value" id="dash-overall-acr">--%</div>
+              <div class="stat-sub">Attribute Completeness Rate</div>
+            </div>
+            <div class="stat-card red">
+              <div class="stat-label">Missing Attributes</div>
+              <div class="stat-value" id="dash-missing-attrs">0</div>
+              <div class="stat-sub" id="dash-missing-sub">Across all products</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">ACR by Product</div>
+            <div class="card-body" id="dash-product-bars"></div>
+          </div>
+
+          <div class="card" style="margin-top:20px">
+            <div class="card-header">Top DQ Issues</div>
+            <div class="card-body">
+              <table class="attr-table">
+                <thead>
+                  <tr><th>Product</th><th>Issue</th><th>Missing Count</th></tr>
+                </thead>
+                <tbody id="dash-issues-body"></tbody>
+              </table>
+            </div>
           </div>
         </div>
+      </div>
 
-        <div class="card" style="margin-top:20px">
-          <div class="card-header">Top DQ Issues</div>
+      <!-- 5b: Product DQ -->
+      <div class="sub-panel" id="athena-product-dq">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header">
+            <span>Per-Product Data Quality Check</span>
+          </div>
           <div class="card-body">
-            <table class="attr-table">
-              <thead>
-                <tr><th>Category</th><th>Top Issue</th><th>Affected SKUs</th><th>Action</th></tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="field-name">Pipes & Fittings</td>
-                  <td>Missing Compatibility attribute</td>
-                  <td><span class="confidence low">1,247 SKUs</span></td>
-                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Pipes & Fittings')">&#x1F527; Fix</button></td>
-                </tr>
-                <tr>
-                  <td class="field-name">Pavers</td>
-                  <td>Missing Dimensions attribute</td>
-                  <td><span class="confidence low">892 SKUs</span></td>
-                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Pavers')">&#x1F527; Fix</button></td>
-                </tr>
-                <tr>
-                  <td class="field-name">Fertilizers</td>
-                  <td>Missing NPK Ratio</td>
-                  <td><span class="confidence medium">678 SKUs</span></td>
-                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Fertilizers')">&#x1F527; Fix</button></td>
-                </tr>
-                <tr>
-                  <td class="field-name">Drip Irrigation</td>
-                  <td>Missing Pressure Rating</td>
-                  <td><span class="confidence medium">612 SKUs</span></td>
-                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Drip Irrigation')">&#x1F527; Fix</button></td>
-                </tr>
-                <tr>
-                  <td class="field-name">Irrigation Valves</td>
-                  <td>Missing Flow Rate</td>
-                  <td><span class="confidence medium">489 SKUs</span></td>
-                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Irrigation Valves')">&#x1F527; Fix</button></td>
-                </tr>
-                <tr>
-                  <td class="field-name">LED Fixtures</td>
-                  <td>Missing Lumen Output</td>
-                  <td><span class="confidence medium">367 SKUs</span></td>
-                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'LED Fixtures')">&#x1F527; Fix</button></td>
-                </tr>
-                <tr>
-                  <td class="field-name">Irrigation Controllers</td>
-                  <td>Missing Voltage Rating</td>
-                  <td><span class="confidence medium">312 SKUs</span></td>
-                  <td><button class="btn btn-sm btn-success" onclick="simulateFix(this, 'Irrigation Controllers')">&#x1F527; Fix</button></td>
-                </tr>
-              </tbody>
-            </table>
+            <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
+              <select class="search-input" id="dq-product-select" style="flex:1;padding:8px 12px;font-size:13px">
+                <option value="">-- Select a product --</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="runProductDQ()">&#x1F50D; Run DQ Check</button>
+            </div>
+            <div id="dq-empty" class="empty-state" style="padding:30px">
+              <div class="icon">&#x1F6E1;</div>
+              <h3>Select a product to check</h3>
+              <p>Process products through the Bulk Upload wizard first, then select one to run a detailed DQ check.</p>
+            </div>
+          </div>
+        </div>
+        <div class="results-grid" id="dq-results">
+          <div class="flow-indicator" id="dq-flow-msg">&#x2705; DQ check complete</div>
+          <!-- Score Gauge -->
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-body" style="text-align:center;padding:30px">
+              <div class="dq-gauge-container">
+                <div class="dq-gauge" id="dq-gauge">
+                  <span class="dq-gauge-value" id="dq-gauge-value">--</span>
+                </div>
+                <div style="font-size:14px;font-weight:600;color:var(--gray-700);margin-top:12px" id="dq-gauge-label">Overall DQ Score</div>
+              </div>
+            </div>
+          </div>
+          <!-- Breakdown Cards -->
+          <div class="dashboard-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px" id="dq-breakdown-grid">
+          </div>
+          <!-- Recommendations -->
+          <div class="card" id="dq-recommendations-card">
+            <div class="card-header">Recommendations</div>
+            <div class="card-body" id="dq-recommendations"></div>
+          </div>
+          <!-- Recent Checks -->
+          <div class="card" style="margin-top:16px">
+            <div class="card-header">Recently Checked Products</div>
+            <div class="card-body" style="padding:0">
+              <table class="attr-table" style="font-size:12px">
+                <thead>
+                  <tr><th>Product</th><th>SKU</th><th>Score</th><th>Issues</th><th>Checked</th></tr>
+                </thead>
+                <tbody id="dq-recent-checks"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -639,7 +747,7 @@
             <h4>LED Fixtures &mdash; Zero Image Coverage</h4>
             <p>23 new products from Hunter Industries have 0% image coverage. Visual attribute enrichment cannot run without product images.</p>
             <div class="alert-time">Detected 5 hours ago</div>
-            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="alert('Image request sent to supplier via automated email workflow.')">&#x1F4E7; Request Images from Supplier</button>
+            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="this.innerHTML='&#x2705; Request Sent';this.disabled=true;this.closest('.alert-card').style.borderLeftColor='var(--green)'">&#x1F4E7; Request Images from Supplier</button>
           </div>
         </div>
 
@@ -659,8 +767,176 @@
             <h4>Sprinkler Heads &mdash; Duplicate Detection</h4>
             <p>12 potential duplicate product records detected across 3 suppliers. Same model numbers with different SKUs &mdash; likely needs consolidation.</p>
             <div class="alert-time">Detected 3 days ago</div>
-            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="alert('Duplicate review queue opened. 12 records flagged for manual review.')">&#x1F50D; Review Duplicates</button>
+            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="this.innerHTML='&#x2705; 12 Records Queued';this.disabled=true;this.closest('.alert-card').style.borderLeftColor='var(--green)'">&#x1F50D; Review Duplicates</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════ -->
+    <!-- MODULE 4: KNOWLEDGE BASE                    -->
+    <!-- ════════════════════════════════════════════ -->
+    <div class="module-panel" id="panel-kb">
+      <div class="module-header">
+        <h2>&#x1F4DA; Retail Domain Knowledge Base</h2>
+        <p>SiteOne's category taxonomy, attribute dictionaries, and validation rules &mdash; the backbone of data quality.</p>
+      </div>
+
+      <!-- KB Stats -->
+      <div class="dashboard-grid" id="kb-stats-grid">
+        <div class="stat-card blue">
+          <div class="stat-label">Categories</div>
+          <div class="stat-value" id="kb-stat-cats">--</div>
+          <div class="stat-sub">Class dictionaries</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-label">Attributes</div>
+          <div class="stat-value" id="kb-stat-attrs">--</div>
+          <div class="stat-sub">Across all classes</div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-label">Validation Rules</div>
+          <div class="stat-value" id="kb-stat-rules">--</div>
+          <div class="stat-sub">DQ &amp; auto-correction</div>
+        </div>
+      </div>
+
+      <div class="sub-tabs">
+        <div class="sub-tab active" data-subtab="kb-categories">&#x1F3F7; Class Dictionaries</div>
+        <div class="sub-tab" data-subtab="kb-attributes">&#x1F9E9; Attribute Dictionaries</div>
+        <div class="sub-tab" data-subtab="kb-rules">&#x2699; Marketplace Rules</div>
+      </div>
+
+      <!-- Categories Sub-panel -->
+      <div class="sub-panel active" id="kb-categories">
+        <div class="card">
+          <div class="card-header">
+            <span>Category Taxonomy (<span id="kb-cat-count">0</span> classes)</span>
+            <div style="display:flex;gap:8px">
+              <input class="search-input" id="kb-cat-search" placeholder="Search categories..." style="width:250px;padding:6px 12px;font-size:12px" oninput="searchKBCategories()">
+            </div>
+          </div>
+          <div class="card-body" style="padding:0;max-height:500px;overflow-y:auto">
+            <table class="attr-table" style="font-size:12px">
+              <thead>
+                <tr>
+                  <th style="width:60px">Class ID</th>
+                  <th>Category Path</th>
+                  <th style="width:70px">Attributes</th>
+                  <th style="width:70px">Mandatory</th>
+                  <th style="width:60px">Action</th>
+                </tr>
+              </thead>
+              <tbody id="kb-cat-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attributes Sub-panel -->
+      <div class="sub-panel" id="kb-attributes">
+        <div class="card">
+          <div class="card-header">
+            <span>Attribute Dictionary</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select class="search-input" id="kb-attr-class-select" style="width:280px;padding:6px 12px;font-size:12px" onchange="loadKBAttributes()">
+                <option value="">-- Select a class --</option>
+              </select>
+              <input class="search-input" id="kb-attr-search" placeholder="Search attributes..." style="width:200px;padding:6px 12px;font-size:12px" oninput="loadKBAttributes()">
+            </div>
+          </div>
+          <div class="card-body" style="padding:0">
+            <div id="kb-attr-class-path" style="padding:10px 16px;background:var(--gray-50);font-size:12px;color:var(--gray-600);border-bottom:1px solid var(--gray-100);display:none">
+              <strong>Class:</strong> <span id="kb-attr-class-path-text"></span> &mdash; <span id="kb-attr-total-text"></span>
+            </div>
+            <div style="max-height:500px;overflow-y:auto">
+              <table class="attr-table" style="font-size:12px">
+                <thead>
+                  <tr>
+                    <th>Attribute Name</th>
+                    <th style="width:60px">Mandatory</th>
+                    <th style="width:70px">Rule Type</th>
+                    <th>Rule Description</th>
+                    <th style="width:80px">Default Values</th>
+                    <th style="width:50px">PC2 Gen</th>
+                  </tr>
+                </thead>
+                <tbody id="kb-attr-table-body">
+                  <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--gray-400)">Select a class to view attributes</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rules Sub-panel -->
+      <div class="sub-panel" id="kb-rules">
+        <div class="card">
+          <div class="card-header">
+            <span>Validation &amp; Auto-Correction Rules (<span id="kb-rules-count">0</span>)</span>
+          </div>
+          <div class="card-body" style="padding:0;max-height:600px;overflow-y:auto">
+            <div id="kb-rules-container"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════ -->
+    <!-- MODULE 5: RULE BUILDER                      -->
+    <!-- ════════════════════════════════════════════ -->
+    <div class="module-panel" id="panel-rulebuilder">
+      <div class="module-header">
+        <h2>&#x2699; Rule Builder</h2>
+        <p>Create and manage custom validation, auto-correction, and data quality rules for the SiteOne catalog.</p>
+      </div>
+
+      <div style="display:flex;gap:16px;margin-bottom:20px">
+        <a href="https://athenadev2.iksulalive.com/admin/custom-rule-list" target="_blank" rel="noopener" class="btn btn-primary" style="text-decoration:none">&#x1F517; Open Rule Builder (Athena)</a>
+        <a href="https://athenadev2.iksulalive.com/admin/category-sheet" target="_blank" rel="noopener" class="btn btn-secondary" style="text-decoration:none">&#x1F4CB; Category Sheet</a>
+        <a href="https://athenadev2.iksulalive.com/admin/attribute-sheet" target="_blank" rel="noopener" class="btn btn-secondary" style="text-decoration:none">&#x1F9E9; Attribute Sheet</a>
+      </div>
+
+      <div class="dashboard-grid" style="margin-bottom:20px">
+        <div class="stat-card blue" style="cursor:pointer" onclick="window.open('https://athenadev2.iksulalive.com/admin/rule-type','_blank')">
+          <div class="stat-label">Rule Types</div>
+          <div class="stat-value" id="rb-stat-types">&#x2192;</div>
+          <div class="stat-sub">Manage rule type definitions</div>
+        </div>
+        <div class="stat-card green" style="cursor:pointer" onclick="window.open('https://athenadev2.iksulalive.com/admin/rule-panel','_blank')">
+          <div class="stat-label">Rule Panel</div>
+          <div class="stat-value" id="rb-stat-panel">&#x2192;</div>
+          <div class="stat-sub">Configure rule execution</div>
+        </div>
+        <div class="stat-card red" style="cursor:pointer" onclick="window.open('https://athenadev2.iksulalive.com/admin/bulk-rule','_blank')">
+          <div class="stat-label">Bulk Rules</div>
+          <div class="stat-value" id="rb-stat-bulk">&#x2192;</div>
+          <div class="stat-sub">Apply rules in bulk</div>
+        </div>
+      </div>
+
+      <!-- Local rules from KB -->
+      <div class="card">
+        <div class="card-header">
+          <span>Local Rules from Knowledge Base (<span id="rb-local-count">0</span>)</span>
+          <a href="https://athenadev2.iksulalive.com/admin/custom-rule-list" target="_blank" rel="noopener" class="btn btn-sm btn-success" style="text-decoration:none">&#x2795; Create New Rule</a>
+        </div>
+        <div class="card-body" style="padding:0;max-height:500px;overflow-y:auto">
+          <table class="attr-table" style="font-size:12px">
+            <thead>
+              <tr>
+                <th>Rule ID</th>
+                <th>Rule Name</th>
+                <th>Description</th>
+                <th style="width:70px">Scope</th>
+                <th style="width:70px">Type</th>
+              </tr>
+            </thead>
+            <tbody id="rb-rules-table-body">
+              <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--gray-400)">Loading rules...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

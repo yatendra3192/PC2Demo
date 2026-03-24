@@ -4,3 +4,4 @@ uploads/
 server.log
 *.pdf
 *.xlsx
+!kb/*.xlsx

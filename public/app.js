@@ -86,6 +86,27 @@ function sourceTag(source, sourceDetail) {
   return `<span class="source-tag ${cls}">${label}${detail}</span>`;
 }
 
+// Multi-source tag renderer for extraction pipeline
+function multiSourceTags(sources) {
+  if (!sources) return '';
+  // Handle both array and single string
+  const srcArray = Array.isArray(sources) ? sources : [sources];
+  if (srcArray.length === 0) return '';
+  const srcMap = {
+    'pdf': ['kb', 'PDF'],
+    'image': ['image', 'Image'],
+    'description': ['web', 'Description'],
+    'inferred': ['inference', 'Inferred'],
+    'user_edit': ['', 'User Edit'],
+    'pdp_page': ['web', 'PDP Page'],
+    'pdf_reanalysis': ['kb', 'PDF (re-scan)'],
+  };
+  return srcArray.map(s => {
+    const [cls, label] = srcMap[s] || ['', s];
+    return `<span class="source-tag ${cls}">${label}</span>`;
+  }).join(' ');
+}
+
 // ── SOURCES PANEL RENDERER ────────────────────────────────
 function renderSourcesPanel(containerId, sources, title, type) {
   const container = document.getElementById(containerId);
@@ -318,11 +339,13 @@ setupUploadZone('image-upload-zone', 'image-file-input', async (files) => {
   fileList.forEach((file, i) => {
     const reader = new FileReader();
     reader.onload = () => {
-      localPreviews[i] = { dataUrl: reader.result, base64: reader.result.split(',')[1], mime: file.type };
-      thumbGrid.innerHTML += `<img class="thumb-item" src="${reader.result}" title="${file.name}">`;
+      const dataUrl = reader.result || '';
+      const base64Part = dataUrl.indexOf(',') !== -1 ? dataUrl.split(',')[1] : '';
+      localPreviews[i] = { dataUrl: dataUrl, base64: base64Part, mime: file.type };
+      thumbGrid.innerHTML += `<img class="thumb-item" src="${dataUrl}" title="${file.name}">`;
       // Store first image for enrichment
       if (i === 0) {
-        uploadedImageBase64 = reader.result.split(',')[1];
+        uploadedImageBase64 = base64Part;
         uploadedImageMime = file.type;
       }
     };
@@ -350,8 +373,15 @@ setupUploadZone('image-upload-zone', 'image-file-input', async (files) => {
 
     // Store the first product's image for enrichment (use server-provided thumbnail if available)
     if (products[0]._thumbnail) {
-      uploadedImageBase64 = products[0]._thumbnail.split(',')[1];
-      uploadedImageMime = products[0]._thumbnail.split(';')[0].split(':')[1];
+      try {
+        const thumb = products[0]._thumbnail;
+        uploadedImageBase64 = thumb.indexOf(',') !== -1 ? thumb.split(',')[1] : '';
+        const mimeMatch = thumb.match(/^data:([^;]+);/);
+        uploadedImageMime = mimeMatch ? mimeMatch[1] : null;
+      } catch (e) {
+        uploadedImageBase64 = null;
+        uploadedImageMime = null;
+      }
     }
 
     // Update flow message
@@ -672,9 +702,13 @@ function switchEnrichProduct(idx) {
   copyBtn.textContent = '✍ Generate Copy';
   copyBtn.disabled = false;
 
-  // Hide previous copy results
+  const imgGenBtn = document.getElementById('gen-image-btn');
+  if (imgGenBtn) { imgGenBtn.textContent = '🎨 Generate Lifestyle Image'; imgGenBtn.disabled = false; }
+
+  // Hide previous results from all sub-tabs
   document.getElementById('copy-results').classList.remove('visible');
   document.getElementById('image-enrich-results').classList.remove('visible');
+  document.getElementById('imagen-results').classList.remove('visible');
 
   // Populate attributes table
   populateEnrichmentTable();
@@ -682,7 +716,7 @@ function switchEnrichProduct(idx) {
   // Setup image for enrichment
   if (product._imageUrl) {
     document.getElementById('image-enrich-preview').innerHTML =
-      `<img src="${product._imageUrl}" style="max-width:100%;max-height:250px;border-radius:8px;border:1px solid var(--gray-200)" onerror="this.parentElement.innerHTML='<div class=\\'empty-state\\' style=\\'padding:30px\\'><div class=\\'icon\\'>📷</div><h3>Image could not load</h3></div>'">`;
+      `<img src="${product._imageUrl}" style="max-width:100%;max-height:250px;border-radius:8px;border:1px solid var(--gray-200)" onerror="this.style.display='none'">`;
     document.getElementById('run-image-enrichment-btn').style.display = '';
     // We don't have base64 for URL images, so set flag for server-side fetch
     uploadedImageBase64 = null;
@@ -731,10 +765,61 @@ function populateEnrichmentTable() {
   circle.className = 'acr-circle ' + (acr < 50 ? 'low' : acr < 75 ? 'medium' : 'high');
 }
 
-// ── 4a: RUN ENRICHMENT ────────────────────────────────────
+// ── 4a: RUN ENRICHMENT (PDP gap-fill first, then standard) ─
 async function runEnrichment() {
   if (!currentProduct) return;
-  showLoading('Running Enrichment', 'Filling attribute gaps from Knowledge Base and category inference...');
+
+  const hasPdp = currentProduct.pdp_url;
+  const hasPdf = currentProduct.pdf_urls && currentProduct.pdf_urls.length > 0;
+
+  // Try gap-fill with PDP/PDF first if available
+  if (hasPdp || hasPdf) {
+    showLoading('Gap Filling', hasPdp ? 'Fetching PDP page for missing attributes...' : 'Re-analyzing PDF for missing attributes...');
+
+    try {
+      // Figure out which attributes are missing
+      const attrs = { ...currentProduct.attributes, ...currentProduct.specifications };
+      const allKeys = Object.keys(attrs);
+      const missingAttrs = allKeys.filter(k => {
+        const v = typeof attrs[k] === 'object' ? attrs[k].value : attrs[k];
+        return !v || v === 'null' || v === 'N/A';
+      });
+
+      if (missingAttrs.length > 0) {
+        const gapRes = await fetch('/api/enrich/gap-fill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product: cleanProductData(currentProduct),
+            missingAttributes: missingAttrs,
+            pdpUrl: currentProduct.pdp_url || '',
+            pdfUrls: currentProduct.pdf_urls || [],
+            imageUrls: currentProduct.image_urls || []
+          })
+        });
+        const gapJson = await gapRes.json();
+
+        if (gapJson.success && gapJson.data.filled) {
+          // Merge gap-filled attributes into currentProduct
+          Object.entries(gapJson.data.filled).forEach(([key, val]) => {
+            if (val.value && val.value !== 'null') {
+              if (!currentProduct.attributes) currentProduct.attributes = {};
+              currentProduct.attributes[key] = {
+                value: val.value,
+                confidence: val.confidence || 0.8,
+                source: val.source || 'gap_fill',
+                was_missing: true
+              };
+            }
+          });
+        }
+      }
+    } catch (gapErr) {
+      console.log('Gap-fill step failed, continuing with standard enrichment:', gapErr.message);
+    }
+  }
+
+  showLoading('Running Enrichment', 'Filling remaining gaps from Knowledge Base and category inference...');
 
   try {
     const res = await fetch('/api/enrich/attributes', {
@@ -790,7 +875,8 @@ async function runEnrichment() {
       document.getElementById('enrich-sources-container').innerHTML = '';
       renderSourcesPanel('enrich-sources-container', enriched.sources_consulted, 'Data Sources Consulted — Verified Origins', 'sources');
     }
-    document.getElementById('enrich-gap-warning').innerHTML = '&#x2705; Attribute gaps filled from verified sources — see sources panel above';
+    const pdpNote = currentProduct.pdp_url ? ' (PDP page + KB sources)' : ' (KB + verified sources)';
+    document.getElementById('enrich-gap-warning').innerHTML = `&#x2705; Attribute gaps filled${pdpNote} — see sources panel above`;
     document.getElementById('enrich-gap-warning').classList.remove('warning');
 
     document.getElementById('run-enrichment-btn').textContent = '✅ Enrichment Complete';
@@ -947,37 +1033,119 @@ function sendToAthena() {
   document.querySelector('[data-module="athena"]').classList.add('active');
   document.querySelectorAll('.module-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-athena').classList.add('active');
+
+  // Refresh dashboard with real product data
+  refreshDashboard();
+
+  // Populate DQ product selector from whatever products we have
+  const products = enrichProductList.length > 0 ? enrichProductList : allIngestedProducts;
+  if (products.length > 0) {
+    populateDQSelector(products);
+  }
 }
 
 // ── ATHENA DASHBOARD ──────────────────────────────────────
 function initDashboard() {
-  const categories = [
-    { name: 'Sprinkler Heads', acr: 81.2, issues: 621 },
-    { name: 'Transformers', acr: 77.2, issues: 312 },
-    { name: 'LED Fixtures', acr: 74.6, issues: 945 },
-    { name: 'Irrigation Controllers', acr: 72.4, issues: 847 },
-    { name: 'Fertilizers', acr: 70.1, issues: '1,823' },
-    { name: 'Irrigation Valves', acr: 68.1, issues: '1,203' },
-    { name: 'Drip Irrigation', acr: 65.3, issues: '1,567' },
-    { name: 'Pavers', acr: 63.4, issues: '2,156' },
-    { name: 'Pipes & Fittings', acr: 59.8, issues: '3,204' },
-  ];
+  // Show real data from processed products
+  refreshDashboard();
+}
 
-  const container = document.getElementById('category-bars');
-  container.innerHTML = '';
+function refreshDashboard() {
+  const products = enrichProductList.length > 0 ? enrichProductList : allIngestedProducts;
 
-  categories.forEach(cat => {
-    const cls = cat.acr < 65 ? 'low' : cat.acr < 75 ? 'medium' : 'high';
-    const color = cat.acr < 65 ? 'var(--red)' : cat.acr < 75 ? 'var(--orange)' : 'var(--green)';
-    container.innerHTML += `<div class="category-row">
-      <span class="cat-name">${cat.name}</span>
+  if (products.length === 0) {
+    document.getElementById('athena-dash-empty').style.display = 'block';
+    document.getElementById('athena-dash-content').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('athena-dash-empty').style.display = 'none';
+  document.getElementById('athena-dash-content').style.display = 'block';
+
+  // Compute real stats from products
+  const totalSkus = products.length;
+  let totalFilled = 0;
+  let totalRequired = 0;
+  let totalMissing = 0;
+  const productStats = [];
+  const issuesList = [];
+
+  products.forEach(p => {
+    const attrs = p.attributes || {};
+    const attrKeys = Object.keys(attrs);
+    let filled = 0;
+    let missing = 0;
+    const missingNames = [];
+
+    attrKeys.forEach(key => {
+      const val = typeof attrs[key] === 'object' ? attrs[key].value : attrs[key];
+      if (val && val !== 'null' && val !== 'N/A' && val !== '') {
+        filled++;
+      } else {
+        missing++;
+        missingNames.push(key);
+      }
+    });
+
+    // If no attrs at all, estimate from template
+    const total = Math.max(attrKeys.length, 10);
+    const acr = total > 0 ? Math.round((filled / total) * 100) : 0;
+
+    totalFilled += filled;
+    totalRequired += total;
+    totalMissing += missing;
+
+    const name = p.product_name || p._productId || 'Unknown';
+    productStats.push({ name, acr, filled, total, missing });
+
+    if (missing > 0) {
+      issuesList.push({
+        product: name,
+        issue: `Missing ${missingNames.slice(0, 3).join(', ')}${missingNames.length > 3 ? ` (+${missingNames.length - 3} more)` : ''}`,
+        count: missing
+      });
+    }
+  });
+
+  const overallAcr = totalRequired > 0 ? Math.round((totalFilled / totalRequired) * 100) : 0;
+
+  // Update stat cards
+  document.getElementById('dash-total-skus').textContent = totalSkus;
+  document.getElementById('dash-overall-acr').textContent = overallAcr + '%';
+  document.getElementById('dash-overall-acr').style.color = overallAcr >= 75 ? 'var(--green)' : overallAcr >= 50 ? 'var(--orange)' : 'var(--red)';
+  document.getElementById('dash-missing-attrs').textContent = totalMissing;
+  document.getElementById('dash-missing-sub').textContent = `Across ${totalSkus} products`;
+
+  // ACR by Product bars
+  const barsContainer = document.getElementById('dash-product-bars');
+  barsContainer.innerHTML = '';
+  productStats.sort((a, b) => b.acr - a.acr).forEach(ps => {
+    const cls = ps.acr < 50 ? 'low' : ps.acr < 75 ? 'medium' : 'high';
+    const color = ps.acr < 50 ? 'var(--red)' : ps.acr < 75 ? 'var(--orange)' : 'var(--green)';
+    barsContainer.innerHTML += `<div class="category-row">
+      <span class="cat-name" style="width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeForHtml(ps.name)}">${escapeForHtml(ps.name)}</span>
       <div class="cat-bar-container">
-        <div class="cat-bar ${cls}" style="width:${cat.acr}%"></div>
+        <div class="cat-bar ${cls}" style="width:${ps.acr}%"></div>
       </div>
-      <span class="cat-score" style="color:${color}">${cat.acr}%</span>
-      <span class="cat-issues">${cat.issues} issues</span>
+      <span class="cat-score" style="color:${color}">${ps.acr}%</span>
+      <span class="cat-issues">${ps.filled}/${ps.total}</span>
     </div>`;
   });
+
+  // Top DQ Issues
+  const issuesBody = document.getElementById('dash-issues-body');
+  issuesBody.innerHTML = '';
+  if (issuesList.length === 0) {
+    issuesBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--green)">No missing attributes found</td></tr>';
+  } else {
+    issuesList.sort((a, b) => b.count - a.count).forEach(iss => {
+      issuesBody.innerHTML += `<tr>
+        <td class="field-name">${escapeForHtml(iss.product)}</td>
+        <td style="font-size:12px;color:var(--gray-600)">${escapeForHtml(iss.issue)}</td>
+        <td><span class="confidence ${iss.count > 3 ? 'low' : iss.count > 1 ? 'medium' : 'high'}">${iss.count} missing</span></td>
+      </tr>`;
+    });
+  }
 }
 
 // ── SIMULATE FIX ──────────────────────────────────────────
@@ -1026,7 +1194,7 @@ async function sendChat() {
 
   // Add user message
   const messagesEl = document.getElementById('chat-messages');
-  messagesEl.innerHTML += `<div class="chat-msg user">${text}</div>`;
+  messagesEl.innerHTML += `<div class="chat-msg user">${escapeForHtml(text)}</div>`;
 
   // Add typing indicator
   const typingId = 'typing-' + Date.now();
@@ -1044,14 +1212,15 @@ async function sendChat() {
     const json = await res.json();
 
     // Remove typing indicator
-    document.getElementById(typingId).remove();
+    const typingEl = document.getElementById(typingId);
+    if (typingEl) typingEl.remove();
 
     if (!json.success) throw new Error(json.error);
 
     chatHistory.push({ role: 'assistant', content: json.reply });
 
-    // Format the response (basic markdown-like formatting)
-    let formatted = json.reply
+    // Format the response (escape first, then apply basic markdown-like formatting)
+    let formatted = escapeForHtml(json.reply)
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\n\n/g, '<br><br>')
       .replace(/\n- /g, '<br>• ')
@@ -1061,8 +1230,9 @@ async function sendChat() {
     messagesEl.innerHTML += `<div class="chat-msg assistant">${formatted}</div>`;
     messagesEl.scrollTop = messagesEl.scrollHeight;
   } catch (err) {
-    document.getElementById(typingId).remove();
-    messagesEl.innerHTML += `<div class="chat-msg assistant" style="color:var(--red)">Error: ${err.message}</div>`;
+    const typingEl = document.getElementById(typingId);
+    if (typingEl) typingEl.remove();
+    messagesEl.innerHTML += `<div class="chat-msg assistant" style="color:var(--red)">Error: ${escapeForHtml(err.message)}</div>`;
   }
 }
 
@@ -1164,9 +1334,20 @@ async function runDeduplication() {
   }
 }
 
-// ── BULK UPLOAD ───────────────────────────────────────────
+// ── BULK UPLOAD — 4-STEP WIZARD PIPELINE ──────────────────
 let bulkProducts = [];
 let bulkResults = {};
+
+// Pipeline state for wizard
+let pipelineState = {
+  step: 1,
+  products: [],
+  categories: [],
+  templates: [],
+  extractedData: {},
+  userEdits: {},
+  dedupDecisions: {}
+};
 
 setupUploadZone('bulk-upload-zone', 'bulk-file-input', async (files) => {
   const file = Array.from(files)[0] || files;
@@ -1186,163 +1367,412 @@ setupUploadZone('bulk-upload-zone', 'bulk-file-input', async (files) => {
 
     bulkProducts = json.data.products;
     bulkResults = {};
+    pipelineState.products = bulkProducts;
+    pipelineState.step = 1;
 
-    document.getElementById('bulk-flow-msg').innerHTML =
-      `&#x2705; ${bulkProducts.length} products parsed from Excel — ready for processing`;
-    document.getElementById('bulk-count').textContent = bulkProducts.length;
+    // Hide upload section, show wizard
+    document.getElementById('bulk-upload-section').style.display = 'none';
+    document.getElementById('bulk-wizard').style.display = 'block';
+    document.getElementById('bulk-wizard-file-info').textContent =
+      `${bulkProducts.length} products parsed from "${file.name || 'Excel file'}"`;
 
-    // Populate table
-    const tbody = document.getElementById('bulk-table-body');
+    // Populate Step 1 category table
+    const tbody = document.getElementById('wiz-cat-table-body');
     tbody.innerHTML = '';
     bulkProducts.forEach((p, i) => {
-      const imgSrc = p.image_urls[0] || '';
-      tbody.innerHTML += `<tr class="bulk-row" id="bulk-row-${i}" onclick="showBulkDetail(${i})">
+      tbody.innerHTML += `<tr>
         <td style="font-weight:600;color:var(--gray-500)">${i + 1}</td>
-        <td>${imgSrc ? `<img class="bulk-img-thumb" src="${imgSrc}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><rect fill=%22%23eee%22 width=%2240%22 height=%2240%22/><text x=%2220%22 y=%2224%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2212%22>?</text></svg>'">` : '<span style="color:var(--gray-300)">—</span>'}</td>
+        <td style="font-size:12px">${p.product_id}</td>
         <td>
-          <div style="font-weight:500;color:var(--gray-800);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.product_name}</div>
-          <div style="font-size:10px;color:var(--gray-400)">ID: ${p.product_id} | ${p.pdf_urls.length} PDF${p.pdf_urls.length !== 1 ? 's' : ''} | ${p.image_urls.length} img${p.image_urls.length !== 1 ? 's' : ''}</div>
+          <div style="font-weight:500;color:var(--gray-800)">${p.product_name}</div>
+          <div style="font-size:10px;color:var(--gray-400)">${p.pdf_urls.length} PDF | ${p.image_urls.length} img${p.pdp_url ? ' | PDP' : ''}</div>
         </td>
-        <td id="bulk-cat-${i}"><span class="bulk-cat-tag">—</span></td>
-        <td id="bulk-acr-${i}"><span style="color:var(--gray-400)">—</span></td>
-        <td id="bulk-src-${i}"><span style="color:var(--gray-400)">—</span></td>
-        <td id="bulk-status-${i}"><span class="bulk-status pending">Pending</span></td>
+        <td id="wiz-cat-cat-${i}"><span style="color:var(--gray-400)">—</span></td>
+        <td id="wiz-cat-cls-${i}"><span style="color:var(--gray-400)">—</span></td>
+        <td id="wiz-cat-conf-${i}"><span style="color:var(--gray-400)">—</span></td>
       </tr>`;
     });
 
-    document.getElementById('bulk-parsed').classList.add('visible');
+    goToStep(1);
   } catch (err) {
     hideLoading();
     alert('Error: ' + err.message);
   }
 }, true);
 
-async function bulkProcessAll() {
+function resetBulkWizard() {
+  bulkProducts = [];
+  bulkResults = {};
+  pipelineState = { step: 1, products: [], categories: [], templates: [], extractedData: {}, userEdits: {}, dedupDecisions: {} };
+  document.getElementById('bulk-wizard').style.display = 'none';
+  document.getElementById('bulk-upload-section').style.display = 'block';
+  document.getElementById('bulk-file-input').value = '';
+  // Reset all wizard buttons
+  ['wiz-categorize-btn', 'wiz-template-btn', 'wiz-extract-btn', 'wiz-dedup-btn'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) { btn.disabled = false; }
+  });
+  ['wiz-next-1', 'wiz-next-2', 'wiz-next-3'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = true;
+  });
+}
+
+// ── WIZARD NAVIGATION ─────────────────────────────────────
+function goToStep(n) {
+  pipelineState.step = n;
+
+  // Update wizard nav
+  document.querySelectorAll('.wizard-step').forEach(s => {
+    const stepNum = parseInt(s.dataset.wizStep);
+    s.classList.remove('active', 'completed');
+    if (stepNum === n) s.classList.add('active');
+    else if (stepNum < n) s.classList.add('completed');
+  });
+
+  // Update connectors
+  const connectors = document.querySelectorAll('.wizard-connector');
+  connectors.forEach((c, i) => {
+    c.classList.toggle('completed', i < n - 1);
+  });
+
+  // Show/hide panels
+  document.querySelectorAll('.wizard-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById(`wizard-step-${n}`);
+  if (panel) panel.classList.add('active');
+}
+
+// ── STEP 1: BATCH CATEGORIZE ──────────────────────────────
+async function runBatchCategorize() {
   if (bulkProducts.length === 0) return;
 
-  const btn = document.getElementById('bulk-process-btn');
+  const btn = document.getElementById('wiz-categorize-btn');
   btn.disabled = true;
-  btn.innerHTML = '&#x23F3; Processing...';
+  btn.innerHTML = '&#x23F3; Categorizing...';
 
-  const progressCard = document.getElementById('bulk-progress-card');
-  progressCard.style.display = 'block';
+  showLoading('Batch Categorization', `Classifying ${bulkProducts.length} products in one API call...`);
+
+  try {
+    const res = await fetch('/api/ingest/bulk/categorize-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products: bulkProducts })
+    });
+    const json = await res.json();
+    hideLoading();
+
+    if (!json.success) throw new Error(json.error);
+
+    const categories = json.data.categories || [];
+    pipelineState.categories = categories;
+
+    // Update table rows
+    categories.forEach((cat, i) => {
+      const idx = cat.index !== undefined ? cat.index : i;
+      const catEl = document.getElementById(`wiz-cat-cat-${idx}`);
+      const clsEl = document.getElementById(`wiz-cat-cls-${idx}`);
+      const confEl = document.getElementById(`wiz-cat-conf-${idx}`);
+      if (catEl) catEl.innerHTML = `<span class="bulk-cat-tag">${cat.category || '—'}</span>`;
+      if (clsEl) clsEl.innerHTML = `<span style="font-weight:500;color:var(--blue)">${cat.class || '—'}</span>${cat.classId ? `<span style="display:block;font-size:10px;color:var(--gray-400)">ID: ${cat.classId}</span>` : ''}`;
+      if (confEl) confEl.innerHTML = confidenceBadge(cat.confidence || 0.85);
+    });
+
+    btn.innerHTML = '&#x2705; Categorized';
+    document.getElementById('wiz-next-1').disabled = false;
+  } catch (err) {
+    hideLoading();
+    btn.disabled = false;
+    btn.innerHTML = '&#x1F916; Categorize All Products';
+    alert('Error: ' + err.message);
+  }
+}
+
+// ── STEP 2: LOAD TEMPLATES ────────────────────────────────
+async function loadTemplates() {
+  const btn = document.getElementById('wiz-template-btn');
+  btn.disabled = true;
+  btn.innerHTML = '&#x23F3; Loading...';
+
+  // Build product list with categories + classId from KB
+  const productsWithCats = bulkProducts.map((p, i) => {
+    const cat = pipelineState.categories[i] || {};
+    return {
+      index: i,
+      product_id: p.product_id,
+      product_name: p.product_name,
+      category: cat.category || '',
+      class: cat.class || '',
+      classId: cat.classId || ''
+    };
+  });
+
+  try {
+    const res = await fetch('/api/ingest/bulk/get-templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products: productsWithCats })
+    });
+    const json = await res.json();
+
+    if (!json.success) throw new Error(json.error);
+
+    pipelineState.templates = json.data.templates || [];
+
+    // Render template cards
+    const container = document.getElementById('wiz-templates-container');
+    container.innerHTML = '';
+
+    pipelineState.templates.forEach((tpl, i) => {
+      const reqHtml = (tpl.template.required || []).map(a =>
+        `<span class="required-badge">${a}</span>`
+      ).join('');
+      const optHtml = (tpl.template.optional || []).map(a =>
+        `<span class="optional-badge">${a}</span>`
+      ).join('');
+
+      const sourceBadge = tpl.source === 'Knowledge Base'
+        ? '<span class="source-tag kb" style="font-size:10px">KB</span>'
+        : '<span class="source-tag inference" style="font-size:10px">Default</span>';
+      const classIdLabel = tpl.classId ? ` | Class ID: ${tpl.classId}` : '';
+
+      container.innerHTML += `<div class="template-product-card">
+        <div class="template-product-header">
+          <span class="tpl-num">${i + 1}</span>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:13px">${tpl.product_name}</div>
+            <div style="font-size:11px;color:var(--gray-500)">${tpl.category} &rarr; ${tpl.class}${classIdLabel}</div>
+          </div>
+          ${sourceBadge}
+        </div>
+        <div style="margin-bottom:6px;font-size:11px;font-weight:600;color:var(--gray-500)">REQUIRED (${(tpl.template.required || []).length})</div>
+        <div class="template-attrs" style="margin-bottom:10px">${reqHtml || '<span style="color:var(--gray-400);font-size:12px">None</span>'}</div>
+        <div style="font-size:11px;font-weight:600;color:var(--gray-400)">OPTIONAL (${(tpl.template.optional || []).length})</div>
+        <div class="template-attrs">${optHtml || '<span style="color:var(--gray-400);font-size:12px">None</span>'}</div>
+      </div>`;
+    });
+
+    btn.innerHTML = '&#x2705; Templates Loaded';
+    document.getElementById('wiz-next-2').disabled = false;
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = '&#x1F4CB; Load Templates';
+    alert('Error: ' + err.message);
+  }
+}
+
+// ── STEP 3: DATA EXTRACTION ──────────────────────────────
+async function runDataExtraction() {
+  const btn = document.getElementById('wiz-extract-btn');
+  btn.disabled = true;
+  btn.innerHTML = '&#x23F3; Extracting...';
+
+  const progressEl = document.getElementById('wiz-extract-progress');
+  progressEl.style.display = 'block';
 
   const total = bulkProducts.length;
-  let completed = 0;
-  let totalAcr = 0;
-  let totalIssues = 0;
-  let allSources = [];
+
+  // Populate product selector
+  const select = document.getElementById('wiz-extract-product-select');
+  select.innerHTML = '';
+  bulkProducts.forEach((p, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${i + 1}. ${p.product_name}`;
+    select.appendChild(opt);
+  });
 
   for (let i = 0; i < total; i++) {
     const product = bulkProducts[i];
+    const template = pipelineState.templates[i] ? pipelineState.templates[i].template : { required: [], optional: [] };
 
-    // Update status to processing
-    document.getElementById(`bulk-status-${i}`).innerHTML =
-      '<span class="bulk-status processing">Processing</span>';
-    document.getElementById('bulk-progress-status').textContent =
-      `Processing: ${product.product_name}...`;
-
-    // Scroll row into view
-    document.getElementById(`bulk-row-${i}`).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    document.getElementById('wiz-extract-progress-text').textContent = `${i + 1} / ${total}`;
+    document.getElementById('wiz-extract-progress-bar').style.width = `${Math.round(((i + 0.5) / total) * 100)}%`;
 
     try {
-      const res = await fetch('/api/ingest/bulk/process-one', {
+      const res = await fetch('/api/ingest/bulk/extract-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product })
+        body: JSON.stringify({ product, template })
       });
       const json = await res.json();
 
       if (json.success) {
-        bulkResults[i] = json.data;
-        const acr = json.data.acr_score || 0;
-        const issues = (json.data.dq_issues || []).length;
-        totalAcr += acr;
-        totalIssues += issues;
-
-        if (json.data.sources_consulted) {
-          allSources.push(...json.data.sources_consulted);
-        }
-
-        // Update row
-        document.getElementById(`bulk-status-${i}`).innerHTML =
-          '<span class="bulk-status done">Done</span>';
-
-        const cat = json.data.category;
-        if (cat) {
-          document.getElementById(`bulk-cat-${i}`).innerHTML =
-            `<span class="bulk-cat-tag">${cat.class || cat.category || '—'}</span>`;
-        }
-
-        document.getElementById(`bulk-acr-${i}`).innerHTML =
-          `<span style="font-weight:600;color:${acr >= 75 ? 'var(--green)' : acr >= 50 ? 'var(--orange)' : 'var(--red)'}">${acr}%</span>`;
-
-        const srcCount = (json.data.sources_consulted || []).length;
-        document.getElementById(`bulk-src-${i}`).innerHTML =
-          `<span style="font-size:11px;color:var(--blue)">${srcCount}</span>`;
+        pipelineState.extractedData[i] = json.data;
       } else {
-        document.getElementById(`bulk-status-${i}`).innerHTML =
-          '<span class="bulk-status error">Error</span>';
+        pipelineState.extractedData[i] = { error: json.error, attributes: {} };
       }
     } catch (err) {
-      document.getElementById(`bulk-status-${i}`).innerHTML =
-        '<span class="bulk-status error">Error</span>';
+      pipelineState.extractedData[i] = { error: err.message, attributes: {} };
     }
 
-    completed++;
-    const pct = Math.round((completed / total) * 100);
-    document.getElementById('bulk-progress-bar').style.width = pct + '%';
-    document.getElementById('bulk-progress-text').textContent = `${completed} / ${total}`;
+    document.getElementById('wiz-extract-progress-bar').style.width = `${Math.round(((i + 1) / total) * 100)}%`;
   }
 
-  // Done
-  document.getElementById('bulk-progress-status').textContent =
-    `All ${total} products processed successfully!`;
-  btn.innerHTML = '&#x2705; All Products Processed';
+  document.getElementById('wiz-extract-progress-text').textContent = `${total} / ${total}`;
 
-  // Show "Send All to Enrichment" button
-  document.getElementById('bulk-enrich-btn').style.display = '';
+  btn.innerHTML = '&#x2705; Extracted';
+  document.getElementById('wiz-next-3').disabled = false;
 
-  // Show summary
-  document.getElementById('bulk-summary').style.display = 'block';
-  document.getElementById('bulk-stat-processed').textContent = completed;
-  document.getElementById('bulk-stat-acr').textContent = Math.round(totalAcr / completed) + '%';
-  document.getElementById('bulk-stat-issues').textContent = totalIssues;
-
-  // Deduplicate and show sources
-  const uniqueSources = [];
-  const seenNames = new Set();
-  allSources.forEach(s => {
-    if (!seenNames.has(s.name)) {
-      seenNames.add(s.name);
-      uniqueSources.push(s);
-    }
-  });
-  if (uniqueSources.length > 0) {
-    document.getElementById('bulk-sources-container').innerHTML = '';
-    renderSourcesPanel('bulk-sources-container', uniqueSources,
-      `All Sources Consulted — ${uniqueSources.length} unique verified sources across ${completed} products`, 'sources');
-  }
+  // Show first product
+  showExtractedProduct(0);
 }
 
-// ── BULK DEDUPLICATION ─────────────────────────────────────
-async function runBulkDedup() {
-  if (bulkProducts.length < 2) {
-    alert('Need at least 2 products to scan for duplicates.');
+function showExtractedProduct(idx) {
+  const data = pipelineState.extractedData[idx];
+  const template = pipelineState.templates[idx] ? pipelineState.templates[idx].template : { required: [], optional: [] };
+  const product = bulkProducts[idx];
+  const container = document.getElementById('wiz-extract-table-container');
+
+  document.getElementById('wiz-extract-product-select').value = idx;
+
+  if (!data) {
+    container.innerHTML = '<div class="empty-state" style="padding:20px"><h3>Not yet extracted</h3></div>';
     return;
   }
 
-  const btn = document.getElementById('bulk-dedup-btn');
+  if (data.error) {
+    container.innerHTML = `<div class="flow-indicator warning">&#x26A0; Extraction error: ${data.error}</div>`;
+    return;
+  }
+
+  const attrs = data.attributes || {};
+  const allRequired = template.required || [];
+  const allOptional = template.optional || [];
+
+  // Build editable table rows
+  let rows = '';
+
+  // Required attributes first
+  allRequired.forEach(attrName => {
+    const attrData = findAttr(attrs, attrName);
+    const value = attrData ? (attrData.value || '') : '';
+    const conf = attrData ? attrData.confidence : 0;
+    const sources = attrData ? (attrData.sources || attrData.source || '') : '';
+    const isMissing = !value || value === 'null' || value === 'N/A';
+    const userEdit = pipelineState.userEdits[`${idx}_${attrName}`];
+
+    rows += `<tr class="${isMissing && !userEdit ? 'missing-attr-row' : ''}">
+      <td class="field-name">${attrName} <span class="required-badge">REQ</span></td>
+      <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || value)}" data-product="${idx}" data-attr="${attrName}" onchange="handleCellEdit(this)"></td>
+      <td>${sources ? multiSourceTags(sources) : (isMissing ? '<span style="color:var(--red);font-size:11px">missing</span>' : '')}</td>
+      <td>${conf ? confidenceBadge(conf) : (isMissing ? '<span style="color:var(--red);font-size:12px">0%</span>' : '')}</td>
+    </tr>`;
+  });
+
+  // Optional attributes
+  allOptional.forEach(attrName => {
+    const attrData = findAttr(attrs, attrName);
+    const value = attrData ? (attrData.value || '') : '';
+    const conf = attrData ? attrData.confidence : 0;
+    const sources = attrData ? (attrData.sources || attrData.source || '') : '';
+    const userEdit = pipelineState.userEdits[`${idx}_${attrName}`];
+
+    rows += `<tr>
+      <td class="field-name">${attrName} <span class="optional-badge">OPT</span></td>
+      <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || value)}" data-product="${idx}" data-attr="${attrName}" onchange="handleCellEdit(this)"></td>
+      <td>${sources ? multiSourceTags(sources) : ''}</td>
+      <td>${conf ? confidenceBadge(conf) : ''}</td>
+    </tr>`;
+  });
+
+  // Any extra attributes from extraction not in template
+  Object.keys(attrs).forEach(key => {
+    const normalized = key.toLowerCase();
+    const inTemplate = [...allRequired, ...allOptional].some(t => t.toLowerCase() === normalized);
+    if (!inTemplate) {
+      const attrData = attrs[key];
+      const value = typeof attrData === 'object' ? (attrData.value || '') : attrData;
+      const conf = typeof attrData === 'object' ? attrData.confidence : 0.85;
+      const sources = typeof attrData === 'object' ? (attrData.sources || attrData.source || '') : '';
+      const userEdit = pipelineState.userEdits[`${idx}_${key}`];
+
+      rows += `<tr>
+        <td class="field-name">${key}</td>
+        <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || value)}" data-product="${idx}" data-attr="${key}" onchange="handleCellEdit(this)"></td>
+        <td>${sources ? multiSourceTags(sources) : ''}</td>
+        <td>${conf ? confidenceBadge(conf) : ''}</td>
+      </tr>`;
+    }
+  });
+
+  const missingCount = allRequired.filter(a => {
+    const d = findAttr(attrs, a);
+    const userEdit = pipelineState.userEdits[`${idx}_${a}`];
+    return !userEdit && (!d || !d.value || d.value === 'null' || d.value === 'N/A');
+  }).length;
+
+  container.innerHTML = `
+    ${missingCount > 0 ? `<div class="flow-indicator warning" style="margin-bottom:12px">&#x26A0; ${missingCount} required attribute${missingCount !== 1 ? 's' : ''} missing — highlighted in red</div>` : '<div class="flow-indicator" style="margin-bottom:12px">&#x2705; All required attributes populated</div>'}
+    <div style="font-size:13px;font-weight:600;color:var(--gray-700);margin-bottom:8px">${data.product_name || product.product_name} <span style="font-weight:400;color:var(--gray-500)">(${product.product_id})</span></div>
+    ${data.extraction_summary ? `<div style="font-size:12px;color:var(--gray-500);margin-bottom:12px">${data.extraction_summary}</div>` : ''}
+    <table class="attr-table" style="font-size:12px">
+      <thead>
+        <tr><th>Attribute</th><th>Value</th><th>Source</th><th>Confidence</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function findAttr(attrs, name) {
+  // Case-insensitive attribute lookup
+  const key = Object.keys(attrs).find(k => k.toLowerCase() === name.toLowerCase());
+  if (!key) return null;
+  const val = attrs[key];
+  if (typeof val === 'object') return val;
+  return { value: val, confidence: 0.85, sources: [] };
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function escapeForHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function handleCellEdit(input) {
+  const productIdx = input.dataset.product;
+  const attrName = input.dataset.attr;
+  const value = input.value.trim();
+
+  pipelineState.userEdits[`${productIdx}_${attrName}`] = value;
+  input.classList.add('user-edited');
+
+  // Remove missing-attr-row class if user filled it
+  if (value) {
+    const row = input.closest('tr');
+    if (row) row.classList.remove('missing-attr-row');
+  }
+}
+
+// ── STEP 4: WIZARD DEDUPLICATION ──────────────────────────
+async function runWizardDedup() {
+  const btn = document.getElementById('wiz-dedup-btn');
   btn.disabled = true;
   btn.innerHTML = '&#x23F3; Scanning...';
 
-  showLoading('Scanning for Duplicates', `Comparing ${bulkProducts.length} products for potential duplicates...`);
+  showLoading('Scanning for Duplicates', `Comparing ${bulkProducts.length} products...`);
 
   try {
+    // Build product list with extracted data
+    const products = bulkProducts.map((p, i) => {
+      const extracted = pipelineState.extractedData[i] || {};
+      return {
+        product_id: p.product_id,
+        product_name: extracted.product_name || p.product_name,
+        description: p.description || '',
+        brand: extracted.brand || ''
+      };
+    });
+
     const res = await fetch('/api/ingest/deduplicate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ products: bulkProducts.map(p => cleanProductData(p)) })
+      body: JSON.stringify({ products })
     });
     const json = await res.json();
     hideLoading();
@@ -1351,22 +1781,18 @@ async function runBulkDedup() {
 
     const data = json.data;
     const groups = data.duplicate_groups || [];
-
-    // Show section
-    document.getElementById('bulk-dedup-section').style.display = 'block';
-
-    const summaryText = document.getElementById('bulk-dedup-summary-text');
-    summaryText.textContent = groups.length > 0
-      ? `${groups.length} duplicate group${groups.length !== 1 ? 's' : ''} found in ${bulkProducts.length} products`
-      : `No duplicates — all ${bulkProducts.length} products are unique`;
-
-    const container = document.getElementById('bulk-dedup-groups');
-    container.innerHTML = '';
+    const container = document.getElementById('wiz-dedup-container');
 
     if (groups.length === 0) {
-      container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--green)"><span style="font-size:36px">&#x2705;</span><h3 style="margin-top:8px">All Products Are Unique</h3><p style="color:var(--gray-500);font-size:13px">No duplicate records detected</p></div>';
-      btn.innerHTML = '&#x2705; No Duplicates';
+      container.innerHTML = `
+        <div style="text-align:center;padding:30px;color:var(--green)">
+          <span style="font-size:48px">&#x2705;</span>
+          <h3 style="margin-top:12px">All ${bulkProducts.length} Products Are Unique</h3>
+          <p style="color:var(--gray-500)">No duplicate records detected — ready to send to Enrichment</p>
+        </div>`;
     } else {
+      let html = `<div class="flow-indicator warning" style="margin-bottom:16px">&#x26A0; ${groups.length} duplicate group${groups.length !== 1 ? 's' : ''} found — review below</div>`;
+
       groups.forEach((group, gi) => {
         const matchPct = Math.round((group.match_score || 0.85) * 100);
         const matchLabel = group.match_type === 'exact_match' ? 'Exact Match' : group.match_type === 'high_similarity' ? 'High Similarity' : 'Possible Match';
@@ -1382,7 +1808,7 @@ async function runBulkDedup() {
           </div>`;
         });
 
-        container.innerHTML += `<div class="dedup-group">
+        html += `<div class="dedup-group">
           <div class="dedup-group-header">
             <span class="dup-badge">Group ${gi + 1}</span>
             <span>${matchLabel}</span>
@@ -1391,121 +1817,519 @@ async function runBulkDedup() {
           </div>
           ${itemsHtml}
           <div class="dedup-actions">
-            <button class="btn btn-sm btn-secondary" onclick="this.textContent='Skipped';this.disabled=true">Skip</button>
-            <button class="btn btn-sm btn-success" onclick="this.innerHTML='&#x2705; Merged';this.disabled=true;this.closest('.dedup-group').style.opacity='0.5'">Merge &amp; Keep Primary</button>
+            <button class="btn btn-sm btn-secondary" onclick="wizDedupDecision(${gi},'skip',this)">Skip</button>
+            <button class="btn btn-sm btn-success" onclick="wizDedupDecision(${gi},'merge',this)">Merge &amp; Keep Primary</button>
           </div>
         </div>`;
       });
 
-      btn.innerHTML = `&#x1F504; ${groups.length} Duplicate${groups.length !== 1 ? 's' : ''} Found`;
-      btn.style.background = 'rgba(230,126,34,0.1)';
-      btn.style.color = 'var(--orange)';
-      btn.style.borderColor = 'var(--orange)';
+      container.innerHTML = html;
     }
 
-    // Scroll to results
-    document.getElementById('bulk-dedup-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    btn.innerHTML = '&#x2705; Scan Complete';
   } catch (err) {
     hideLoading();
     btn.disabled = false;
-    btn.innerHTML = '&#x1F504; Deduplicate';
+    btn.innerHTML = '&#x1F50D; Scan for Duplicates';
     alert('Error: ' + err.message);
   }
 }
 
-function showBulkDetail(idx) {
-  const result = bulkResults[idx];
-  const product = bulkProducts[idx];
-  const card = document.getElementById('bulk-detail-card');
-  const body = document.getElementById('bulk-detail-body');
-  const title = document.getElementById('bulk-detail-title');
+function wizDedupDecision(groupIdx, decision, btn) {
+  pipelineState.dedupDecisions[groupIdx] = decision;
+  if (decision === 'merge') {
+    btn.innerHTML = '&#x2705; Merged';
+    btn.disabled = true;
+    btn.closest('.dedup-group').style.opacity = '0.5';
+  } else {
+    btn.textContent = 'Skipped';
+    btn.disabled = true;
+  }
+}
 
-  title.textContent = product.product_name;
+// ── FINISH WIZARD → SEND TO ENRICHMENT ────────────────────
+function finishWizard() {
+  // Build enrichment product list from wizard data
+  const processed = [];
+  bulkProducts.forEach((bp, i) => {
+    const extracted = pipelineState.extractedData[i] || {};
+    const cat = pipelineState.categories[i] || {};
 
-  if (!result) {
-    body.innerHTML = `<div class="empty-state" style="padding:24px"><h3>Not yet processed</h3><p>Click "Process All Products" to run ingestion + enrichment</p></div>`;
-    card.style.display = 'block';
+    // Merge extracted attrs with user edits
+    const mergedAttrs = { ...(extracted.attributes || {}) };
+    Object.keys(pipelineState.userEdits).forEach(key => {
+      if (key.startsWith(`${i}_`)) {
+        const attrName = key.substring(String(i).length + 1);
+        mergedAttrs[attrName] = {
+          value: pipelineState.userEdits[key],
+          confidence: 1.0,
+          source: 'user_edit'
+        };
+      }
+    });
+
+    processed.push({
+      _bulkIndex: i,
+      product_name: extracted.product_name || bp.product_name,
+      product_id: bp.product_id,
+      brand: extracted.brand || '',
+      model_number: extracted.model_number || '',
+      description: bp.description || '',
+      attributes: mergedAttrs,
+      specifications: {},
+      category: { category: cat.category || '', class: cat.class || '', confidence: cat.confidence || 0 },
+      _imageUrl: bp.image_urls[0] || null,
+      _productId: bp.product_id,
+      pdp_url: bp.pdp_url || '',
+      pdf_urls: bp.pdf_urls || [],
+      image_urls: bp.image_urls || []
+    });
+  });
+
+  enrichProductList = processed;
+
+  // Also store in allIngestedProducts and bulkResults for DQ checks
+  allIngestedProducts = processed;
+  processed.forEach((p, i) => {
+    bulkResults[i] = p;
+  });
+
+  // Switch to Enrichment tab
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('[data-module="enrichment"]').classList.add('active');
+  document.querySelectorAll('.module-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-enrichment').classList.add('active');
+
+  // Show enrichment content
+  document.getElementById('enrichment-empty').style.display = 'none';
+  document.getElementById('enrichment-content').style.display = 'block';
+
+  // Show product switcher
+  const switcher = document.getElementById('enrich-product-switcher');
+  switcher.style.display = 'block';
+  document.getElementById('enrich-switcher-count').textContent = processed.length + ' products loaded from wizard';
+
+  const select = document.getElementById('enrich-product-select');
+  select.innerHTML = '';
+  processed.forEach((p, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${i + 1}. ${p.product_name} (${p._productId})`;
+    select.appendChild(opt);
+  });
+
+  // Also populate DQ product selector
+  populateDQSelector(processed);
+
+  // Load first product
+  switchEnrichProduct(0);
+}
+
+// ── IMAGE GENERATION (IMAGEN 3) ───────────────────────────
+async function generateLifestyleImage() {
+  if (!currentProduct) return;
+
+  const customPrompt = document.getElementById('imagen-prompt').value.trim();
+  const btn = document.getElementById('gen-image-btn');
+  btn.disabled = true;
+  btn.innerHTML = '&#x23F3; Generating...';
+
+  showLoading('Generating Image', 'Creating lifestyle product image via Gemini Flash / OpenAI...');
+
+  try {
+    const res = await fetch('/api/enrich/generate-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productName: currentProduct.product_name,
+        description: currentProduct.description || '',
+        category: currentProduct.category ? (currentProduct.category.category + ' > ' + (currentProduct.category.class || '')) : '',
+        customPrompt: customPrompt || undefined
+      })
+    });
+    const json = await res.json();
+    hideLoading();
+
+    if (!json.success) throw new Error(json.error);
+
+    const data = json.data;
+    document.getElementById('imagen-preview').innerHTML =
+      `<img src="data:${data.mimeType};base64,${data.imageBase64}" alt="Generated lifestyle image">`;
+    document.getElementById('imagen-prompt-used').innerHTML =
+      `<strong>Prompt used:</strong> ${data.prompt}`;
+
+    document.getElementById('imagen-results').classList.add('visible');
+    btn.innerHTML = '&#x2705; Image Generated';
+  } catch (err) {
+    hideLoading();
+    btn.disabled = false;
+    btn.innerHTML = '&#x1F3A8; Generate Lifestyle Image';
+    alert('Error: ' + err.message);
+  }
+}
+
+// ── PRODUCT DQ CHECK (ATHENA) ─────────────────────────────
+let dqRecentChecks = [];
+
+function populateDQSelector(products) {
+  const select = document.getElementById('dq-product-select');
+  select.innerHTML = '<option value="">-- Select a product --</option>';
+  (products || enrichProductList || []).forEach((p, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${p.product_name} (${p._productId || p.product_id || ''})`;
+    select.appendChild(opt);
+  });
+  if (products && products.length > 0) {
+    document.getElementById('dq-empty').style.display = 'none';
+  }
+}
+
+async function runProductDQ() {
+  const select = document.getElementById('dq-product-select');
+  const idx = parseInt(select.value);
+  if (isNaN(idx)) {
+    alert('Select a product first');
     return;
   }
 
-  // Build detail view
-  let attrsHtml = '';
-  if (result.attributes) {
-    Object.entries(result.attributes).forEach(([key, val]) => {
-      const v = typeof val === 'object' ? val : { value: val, confidence: 0.85 };
-      attrsHtml += `<tr>
-        <td class="field-name">${key}</td>
-        <td>${v.value}</td>
-        <td>${sourceTag(v.source, v.source_detail)}</td>
-        <td>${confidenceBadge(v.confidence || 0.85)}</td>
-      </tr>`;
+  const products = enrichProductList.length > 0 ? enrichProductList : allIngestedProducts;
+  const product = products[idx];
+  if (!product) return;
+
+  // Try to get template from pipeline state, fall back to null (server will handle)
+  let template = null;
+  if (pipelineState.templates[idx]) {
+    template = pipelineState.templates[idx].template;
+  } else if (product._bulkIndex !== undefined && pipelineState.templates[product._bulkIndex]) {
+    template = pipelineState.templates[product._bulkIndex].template;
+  }
+
+  showLoading('Running DQ Check', `Analyzing data quality for ${product.product_name}...`);
+
+  try {
+    const res = await fetch('/api/athena/dq-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product: {
+          product_id: product._productId || product.product_id,
+          product_name: product.product_name,
+          description: product.description || '',
+          category: product.category ? (product.category.category + ' > ' + (product.category.class || '')) : '',
+          attributes: product.attributes || {}
+        },
+        template
+      })
     });
-  }
+    const json = await res.json();
+    hideLoading();
 
-  let visualHtml = '';
-  if (result.visual_attributes) {
-    Object.entries(result.visual_attributes).forEach(([key, val]) => {
-      visualHtml += `<div class="visual-attr"><div class="va-name">${key}</div><div class="va-value">${val}</div></div>`;
-    });
-  }
+    if (!json.success) throw new Error(json.error);
 
-  let issuesHtml = '';
-  if (result.dq_issues && result.dq_issues.length) {
-    issuesHtml = '<div style="margin-top:12px"><h4 style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:6px">DQ ISSUES</h4><ul style="margin:0;padding-left:16px;font-size:13px;color:var(--gray-600)">' +
-      result.dq_issues.map(issue => `<li>${issue}</li>`).join('') + '</ul></div>';
-  }
+    const dq = json.data;
 
-  let sourcesHtml = '';
-  if (result.sources_consulted && result.sources_consulted.length) {
-    sourcesHtml = '<div style="margin-top:16px"><h4 style="font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:6px">SOURCES CONSULTED</h4>';
-    result.sources_consulted.forEach(s => {
-      sourcesHtml += `<div class="source-row" style="padding:6px 0">
-        <div class="source-info">
-          <div class="source-name" style="font-size:12px">${s.name}</div>
-          ${s.url ? `<div class="source-url">${s.url}</div>` : ''}
-        </div>
-        <span class="source-status ${(s.status || 'verified').replace(/ /g, '_')}">${s.status || 'verified'}</span>
+    // Update gauge
+    const gauge = document.getElementById('dq-gauge');
+    const gaugeVal = document.getElementById('dq-gauge-value');
+    gaugeVal.textContent = dq.overall_score;
+    gauge.style.setProperty('--score', dq.overall_score);
+    gauge.className = 'dq-gauge ' + (dq.overall_score < 50 ? 'low' : dq.overall_score < 75 ? 'medium' : 'high');
+
+    document.getElementById('dq-gauge-label').textContent =
+      `Overall DQ Score — ${product.product_name}`;
+
+    // Breakdown cards
+    const breakdownGrid = document.getElementById('dq-breakdown-grid');
+    breakdownGrid.innerHTML = '';
+    const breakdownOrder = ['completeness', 'format', 'range', 'consistency', 'copy_quality'];
+    const breakdownLabels = {
+      completeness: 'Completeness',
+      format: 'Format',
+      range: 'Value Range',
+      consistency: 'Consistency',
+      copy_quality: 'Copy Quality'
+    };
+
+    breakdownOrder.forEach(key => {
+      const b = dq.breakdown[key];
+      if (!b) return;
+      const color = b.score < 50 ? 'var(--red)' : b.score < 75 ? 'var(--orange)' : 'var(--green)';
+      const issues = (b.issues || b.missing || []).slice(0, 3);
+      const issuesHtml = issues.length > 0
+        ? `<div class="dq-b-issues">${issues.map(i => `<div style="padding:2px 0">- ${i}</div>`).join('')}</div>`
+        : '';
+
+      breakdownGrid.innerHTML += `<div class="dq-breakdown-card">
+        <div class="dq-b-label">${breakdownLabels[key] || key}</div>
+        <div class="dq-b-score" style="color:${color}">${b.score}</div>
+        <div class="dq-b-weight">${b.weight || ''}</div>
+        ${issuesHtml}
       </div>`;
     });
-    sourcesHtml += '</div>';
+
+    // Recommendations
+    const recsContainer = document.getElementById('dq-recommendations');
+    recsContainer.innerHTML = '';
+    if (dq.recommendations && dq.recommendations.length) {
+      recsContainer.innerHTML = '<ul style="margin:0;padding-left:16px;font-size:13px;color:var(--gray-700)">' +
+        dq.recommendations.map(r => `<li style="padding:4px 0">${r}</li>`).join('') + '</ul>';
+    } else {
+      recsContainer.innerHTML = '<p style="color:var(--gray-500);font-size:13px">No specific recommendations</p>';
+    }
+
+    // Add to recent checks
+    const totalIssues = breakdownOrder.reduce((sum, key) => {
+      const b = dq.breakdown[key];
+      return sum + ((b && b.issues) || (b && b.missing) || []).length;
+    }, 0);
+
+    dqRecentChecks.unshift({
+      name: product.product_name,
+      sku: product._productId || product.product_id,
+      score: dq.overall_score,
+      issues: totalIssues,
+      time: new Date().toLocaleTimeString()
+    });
+
+    // Update recent checks table
+    const recentBody = document.getElementById('dq-recent-checks');
+    recentBody.innerHTML = '';
+    dqRecentChecks.slice(0, 10).forEach(check => {
+      const color = check.score < 50 ? 'var(--red)' : check.score < 75 ? 'var(--orange)' : 'var(--green)';
+      recentBody.innerHTML += `<tr>
+        <td style="font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${check.name}</td>
+        <td style="font-size:11px;color:var(--gray-500)">${check.sku}</td>
+        <td><span style="font-weight:700;color:${color}">${check.score}</span></td>
+        <td>${check.issues > 0 ? `<span style="color:var(--red)">${check.issues}</span>` : '<span style="color:var(--green)">0</span>'}</td>
+        <td style="font-size:11px;color:var(--gray-400)">${check.time}</td>
+      </tr>`;
+    });
+
+    document.getElementById('dq-flow-msg').innerHTML =
+      `&#x2705; DQ check complete — score: ${dq.overall_score}/100`;
+    document.getElementById('dq-results').classList.add('visible');
+  } catch (err) {
+    hideLoading();
+    alert('Error: ' + err.message);
+  }
+}
+
+// ── KNOWLEDGE BASE ────────────────────────────────────────
+let kbCategoriesCache = [];
+
+async function loadKBStats() {
+  try {
+    const res = await fetch('/api/kb/stats');
+    const json = await res.json();
+    if (!json.success) return;
+    const s = json.data;
+    document.getElementById('kb-stat-cats').textContent = s.totalCategories.toLocaleString();
+    document.getElementById('kb-stat-attrs').textContent = s.totalAttributes.toLocaleString();
+    document.getElementById('kb-stat-rules').textContent = s.totalRules;
+  } catch (e) { console.log('KB stats load error:', e); }
+}
+
+async function loadKBCategories() {
+  try {
+    const search = (document.getElementById('kb-cat-search') || {}).value || '';
+    const res = await fetch('/api/kb/categories?search=' + encodeURIComponent(search));
+    const json = await res.json();
+    if (!json.success) return;
+
+    kbCategoriesCache = json.data.categories;
+    document.getElementById('kb-cat-count').textContent = json.data.total;
+
+    const tbody = document.getElementById('kb-cat-table-body');
+    tbody.innerHTML = '';
+    kbCategoriesCache.forEach(c => {
+      const parts = c.path.split('>');
+      const pathHtml = parts.map((p, i) =>
+        `<span style="color:${i === parts.length - 1 ? 'var(--gray-800);font-weight:600' : 'var(--gray-500)'}">${p.trim()}</span>`
+      ).join(' <span style="color:var(--gray-300)">&rsaquo;</span> ');
+
+      tbody.innerHTML += `<tr class="bulk-row" onclick="viewClassAttributes(${c.classId})">
+        <td style="font-weight:600;color:var(--blue);font-size:11px">${c.classId}</td>
+        <td>${pathHtml}</td>
+        <td style="text-align:center">${c.attrCount}</td>
+        <td style="text-align:center">${c.mandatoryCount > 0 ? `<span style="color:var(--red);font-weight:600">${c.mandatoryCount}</span>` : '<span style="color:var(--gray-400)">0</span>'}</td>
+        <td><button class="btn btn-sm btn-secondary" style="padding:2px 8px;font-size:10px" onclick="event.stopPropagation();viewClassAttributes(${c.classId})">View</button></td>
+      </tr>`;
+    });
+
+    // Also populate the attribute class dropdown
+    const select = document.getElementById('kb-attr-class-select');
+    if (select && select.options.length <= 1) {
+      kbCategoriesCache.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.classId;
+        opt.textContent = `${c.classId} — ${c.path}`;
+        select.appendChild(opt);
+      });
+    }
+  } catch (e) { console.log('KB categories load error:', e); }
+}
+
+function searchKBCategories() {
+  loadKBCategories();
+}
+
+function viewClassAttributes(classId) {
+  // Switch to attributes sub-tab
+  const panel = document.getElementById('panel-kb');
+  panel.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+  panel.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+  panel.querySelector('[data-subtab="kb-attributes"]').classList.add('active');
+  document.getElementById('kb-attributes').classList.add('active');
+
+  document.getElementById('kb-attr-class-select').value = classId;
+  loadKBAttributes();
+}
+
+async function loadKBAttributes() {
+  const classId = document.getElementById('kb-attr-class-select').value;
+  const search = (document.getElementById('kb-attr-search') || {}).value || '';
+
+  if (!classId && !search) {
+    document.getElementById('kb-attr-table-body').innerHTML =
+      '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--gray-400)">Select a class to view attributes</td></tr>';
+    document.getElementById('kb-attr-class-path').style.display = 'none';
+    return;
   }
 
-  const cat = result.category;
-  const imgUrl = result._imageUrl;
+  try {
+    const res = await fetch(`/api/kb/attributes?classId=${classId}&search=${encodeURIComponent(search)}`);
+    const json = await res.json();
+    if (!json.success) return;
 
-  body.innerHTML = `
-    <div class="two-col" style="margin-bottom:16px">
-      <div>
-        <div class="product-summary" style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px">
-          <div class="product-field"><label>Product ID</label><div class="value">${result._productId}</div></div>
-          <div class="product-field"><label>Product Name</label><div class="value">${result.product_name || result._originalName}</div></div>
-          ${result.brand ? `<div class="product-field"><label>Brand</label><div class="value">${result.brand}</div></div>` : ''}
-          ${cat ? `<div class="product-field"><label>Category</label><div class="value">${cat.category || ''} &rarr; ${cat.class || ''} ${confidenceBadge(cat.confidence || 0.85)}</div></div>` : ''}
-          <div class="product-field"><label>ACR Score</label><div class="value" style="font-size:20px;font-weight:700;color:${(result.acr_score||0) >= 75 ? 'var(--green)' : 'var(--orange)'}">${result.acr_score || 0}%</div></div>
+    const attrs = json.data.attributes;
+    const pathEl = document.getElementById('kb-attr-class-path');
+    if (json.data.classPath) {
+      pathEl.style.display = 'block';
+      document.getElementById('kb-attr-class-path-text').textContent = json.data.classPath;
+      document.getElementById('kb-attr-total-text').textContent = `${json.data.total} attributes`;
+    } else {
+      pathEl.style.display = search ? 'block' : 'none';
+      if (search) {
+        document.getElementById('kb-attr-class-path-text').textContent = 'All classes';
+        document.getElementById('kb-attr-total-text').textContent = `${json.data.total} matches`;
+      }
+    }
+
+    const tbody = document.getElementById('kb-attr-table-body');
+    tbody.innerHTML = '';
+
+    if (attrs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--gray-400)">No attributes found</td></tr>';
+      return;
+    }
+
+    attrs.forEach(a => {
+      const mandBadge = a.mandatory === 'Yes'
+        ? '<span class="required-badge">YES</span>'
+        : '<span style="color:var(--gray-400);font-size:11px">No</span>';
+      const ruleTypeBadge = a.ruleType
+        ? `<span class="source-tag kb" style="font-size:10px">${a.ruleType}</span>`
+        : '';
+      const pc2Badge = a.pc2Generation === 'Yes'
+        ? '<span style="color:var(--green);font-weight:600;font-size:11px">Yes</span>'
+        : '<span style="color:var(--gray-400);font-size:11px">No</span>';
+
+      tbody.innerHTML += `<tr>
+        <td class="field-name">${a.name}</td>
+        <td style="text-align:center">${mandBadge}</td>
+        <td>${ruleTypeBadge}</td>
+        <td style="font-size:11px;color:var(--gray-600)">${a.ruleDescription || '<span style="color:var(--gray-300)">—</span>'}</td>
+        <td style="font-size:11px;color:var(--gray-500)">${a.defaultValues || '<span style="color:var(--gray-300)">—</span>'}</td>
+        <td style="text-align:center">${pc2Badge}</td>
+      </tr>`;
+    });
+  } catch (e) { console.log('KB attributes load error:', e); }
+}
+
+async function loadKBRules() {
+  try {
+    const res = await fetch('/api/kb/rules');
+    const json = await res.json();
+    if (!json.success) return;
+
+    const rules = json.data.rules;
+    document.getElementById('kb-rules-count').textContent = rules.length;
+
+    const container = document.getElementById('kb-rules-container');
+    container.innerHTML = '';
+
+    rules.forEach((r, i) => {
+      const scopeBadge = r.scope === 'global'
+        ? '<span class="source-tag inference">Global</span>'
+        : '<span class="source-tag kb">Node</span>';
+
+      // Parse rule JSON for display
+      let ruleDetails = '';
+      try {
+        const ruleJson = JSON.parse(r.json);
+        const ruleKeys = Object.keys(ruleJson.rules || {});
+        const firstRule = ruleJson.rules[ruleKeys[0]] || {};
+        ruleDetails = `<div style="font-size:11px;color:var(--gray-500);margin-top:6px">
+          Type: <strong>${firstRule.ruleType || '—'}</strong> |
+          Steps: ${ruleKeys.length} |
+          Attributes: ${(firstRule.show_attr || []).length}
+        </div>`;
+      } catch (e) {}
+
+      container.innerHTML += `<div class="kb-rule-card">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+          <span style="font-size:11px;font-weight:700;color:var(--blue)">${r.id}</span>
+          ${scopeBadge}
+          <span style="font-weight:600;font-size:13px;color:var(--gray-800)">${r.name}</span>
         </div>
-        ${result.generated_copy ? `
-          <div class="product-field" style="margin-bottom:8px"><label>Generated Title</label><div class="value" style="font-weight:600">${result.generated_copy.product_title || ''}</div></div>
-          <div class="product-field"><label>Generated Description</label><div class="value" style="font-size:13px">${result.generated_copy.short_description || ''}</div></div>
-        ` : ''}
-      </div>
-      <div>
-        ${imgUrl ? `<img src="${imgUrl}" style="width:100%;max-height:250px;object-fit:contain;border-radius:8px;border:1px solid var(--gray-200);margin-bottom:12px" onerror="this.style.display='none'">` : ''}
-        ${visualHtml ? `<div class="visual-grid" style="grid-template-columns:1fr 1fr">${visualHtml}</div>` : ''}
-      </div>
-    </div>
-    ${attrsHtml ? `
-    <h4 style="font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:8px">EXTRACTED ATTRIBUTES</h4>
-    <table class="attr-table" style="font-size:12px">
-      <thead><tr><th>Attribute</th><th>Value</th><th>Source</th><th>Confidence</th></tr></thead>
-      <tbody>${attrsHtml}</tbody>
-    </table>` : ''}
-    ${issuesHtml}
-    ${sourcesHtml}
-  `;
+        <div style="font-size:12px;color:var(--gray-600)">${r.description}</div>
+        ${ruleDetails}
+      </div>`;
+    });
+  } catch (e) { console.log('KB rules load error:', e); }
+}
 
-  card.style.display = 'block';
-  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+// Load KB when module is activated
+function initKB() {
+  loadKBStats();
+  loadKBCategories();
+  loadKBRules();
+}
+
+// ── RULE BUILDER (local KB rules) ─────────────────────────
+async function loadRBRules() {
+  try {
+    const res = await fetch('/api/kb/rules');
+    const json = await res.json();
+    if (!json.success) return;
+    const rules = json.data.rules;
+    document.getElementById('rb-local-count').textContent = rules.length;
+    const tbody = document.getElementById('rb-rules-table-body');
+    tbody.innerHTML = '';
+    if (rules.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--gray-400)">No local rules found</td></tr>';
+      return;
+    }
+    rules.forEach(r => {
+      let ruleType = '';
+      try { const rj = JSON.parse(r.json); const k = Object.keys(rj.rules||{})[0]; ruleType = (rj.rules[k]||{}).ruleType || ''; } catch(e){}
+      const scopeBadge = r.scope === 'global'
+        ? '<span class="source-tag inference">Global</span>'
+        : '<span class="source-tag kb">Node</span>';
+      const typeBadge = ruleType ? `<span class="source-tag" style="font-size:10px">${ruleType}</span>` : '';
+      tbody.innerHTML += `<tr class="bulk-row" onclick="window.open('https://athenadev2.iksulalive.com/admin/custom-rule-list','_blank')">
+        <td style="font-weight:600;color:var(--blue);font-size:11px">${escapeForHtml(r.id)}</td>
+        <td class="field-name">${escapeForHtml(r.name)}</td>
+        <td style="font-size:11px;color:var(--gray-600)">${escapeForHtml(r.description)}</td>
+        <td>${scopeBadge}</td>
+        <td>${typeBadge}</td>
+      </tr>`;
+    });
+  } catch(e) { console.log('RB rules load error:', e); }
 }
 
 // ── INIT ──────────────────────────────────────────────────
 initDashboard();
+initKB();
+loadRBRules();
