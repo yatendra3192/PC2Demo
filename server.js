@@ -496,7 +496,30 @@ Return JSON:
 // 4a: Attribute Gap Filling
 app.post('/api/enrich/attributes', async (req, res) => {
   try {
-    const { productData, category } = req.body;
+    const { productData, category, classId } = req.body;
+
+    // Look up real required attributes from KB based on category/classId
+    let requiredAttrList = '';
+    try {
+      const kb = loadKB();
+      let kbAttrs = [];
+      if (classId) {
+        kbAttrs = kb.attributes.filter(a => String(a.classId) === String(classId));
+      }
+      if (kbAttrs.length === 0 && category) {
+        const catParts = category.split('>').map(s => s.trim());
+        const matchCat = kb.categories.find(c => catParts.some(p => c.path.toLowerCase().includes(p.toLowerCase())));
+        if (matchCat) kbAttrs = kb.attributes.filter(a => String(a.classId) === String(matchCat.classId));
+      }
+      if (kbAttrs.length > 0) {
+        const mandatory = kbAttrs.filter(a => a.mandatory === 'Yes').map(a => a.name);
+        requiredAttrList = mandatory.join(', ');
+      }
+    } catch (e) {}
+
+    if (!requiredAttrList) {
+      requiredAttrList = 'Material Type, Dimensions, Weight, Color, Certifications, Warranty, Operating Temperature Range';
+    }
 
     const response = await callAI({
       model: 'gpt-4o',
@@ -505,8 +528,8 @@ app.post('/api/enrich/attributes', async (req, res) => {
         role: 'system',
         content: `You are PC2's enrichment engine for SiteOne Landscape Supply. Given a product record with gaps (missing attributes), fill them using verified sources.
 
-For the category "${category || 'Irrigation > Controllers'}", the REQUIRED attributes are:
-Voltage Rating, Power (W), Material Type, Dimensions (L×W×H), Weight, Color, Connectivity, Number of Zones/Stations, Compatible Valves, Flow Rate Capacity, Weather Resistance Rating (IP), Certifications, Warranty, Operating Temperature Range, Programming Method, Rain Sensor Compatible, WiFi/Bluetooth, Indoor/Outdoor Use, Mounting Type, Wire Gauge Required.
+For the category "${category || 'General'}", the REQUIRED attributes from the Knowledge Base are:
+${requiredAttrList}
 
 For each filled attribute, provide:
 - value: the attribute value

@@ -45,6 +45,7 @@ function hideLoading() {
 
 // ── HELPERS ───────────────────────────────────────────────
 function confidenceBadge(score) {
+  if (score > 1) score = score / 100; // Normalize 0-100 to 0-1
   const pct = Math.round(score * 100);
   let cls = 'high';
   if (score < 0.7) cls = 'low';
@@ -52,16 +53,48 @@ function confidenceBadge(score) {
   return `<span class="confidence ${cls}">${pct}%</span>`;
 }
 
-// Strip large fields (base64 images, raw text) before sending to API
+// Compute ACR consistently across all views (enrichment, dashboard, DQ)
+function computeACR(product, template) {
+  const attrs = { ...(product.attributes || {}), ...(product.specifications || {}) };
+  const attrKeys = Object.keys(attrs);
+  let filled = 0;
+  const missingNames = [];
+
+  attrKeys.forEach(key => {
+    const val = typeof attrs[key] === 'object' ? attrs[key].value : attrs[key];
+    if (val && val !== 'null' && val !== 'N/A' && val !== '') {
+      filled++;
+    } else {
+      missingNames.push(key);
+    }
+  });
+
+  // Cross-reference against template — required attrs not in extracted data
+  if (template) {
+    const allTemplateAttrs = [...(template.required || []), ...(template.optional || [])];
+    allTemplateAttrs.forEach(reqAttr => {
+      const found = attrKeys.find(k => k.toLowerCase() === reqAttr.toLowerCase());
+      if (!found) missingNames.push(reqAttr);
+    });
+  }
+
+  const missing = missingNames.length;
+  const total = filled + missing;
+  const acr = total > 0 ? Math.round((filled / total) * 100) : 0;
+  return { filled, total, missing, acr, missingNames };
+}
+
+// Strip large fields before sending to API
 function cleanProductData(product) {
   if (!product) return product;
   const clean = { ...product };
   delete clean._thumbnail;
   delete clean._fileName;
-  delete clean.extracted_text;
-  // Truncate description if too long
-  if (clean.description && clean.description.length > 500) {
-    clean.description = clean.description.substring(0, 500);
+  if (clean.extracted_text && clean.extracted_text.length > 2000) {
+    clean.extracted_text = clean.extracted_text.substring(0, 2000);
+  }
+  if (clean.description && clean.description.length > 3000) {
+    clean.description = clean.description.substring(0, 3000);
   }
   return clean;
 }
@@ -735,17 +768,17 @@ function populateEnrichmentTable() {
   const tbody = document.getElementById('enrich-attrs-body');
   tbody.innerHTML = '';
 
-  const attrs = { ...currentProduct.attributes, ...currentProduct.specifications };
+  const attrs = { ...(currentProduct.attributes || {}), ...(currentProduct.specifications || {}) };
 
-  // Show only actual extracted attributes from the product (not hardcoded list)
-  let filled = 0;
+  // Get template for this product
+  const bulkIdx = currentProduct._bulkIndex;
+  const tpl = (bulkIdx !== undefined && pipelineState.templates[bulkIdx]) ? pipelineState.templates[bulkIdx].template : null;
+  const acrData = computeACR(currentProduct, tpl);
+
   const attrKeys = Object.keys(attrs);
-
   attrKeys.forEach(key => {
     const val = typeof attrs[key] === 'object' ? attrs[key] : { value: attrs[key], confidence: 0.9 };
-    // Skip empty values
     if (!val.value || val.value === '' || val.value === 'N/A') return;
-    filled++;
     tbody.innerHTML += `<tr>
       <td class="field-name">${key}</td>
       <td>${val.value}</td>
@@ -754,15 +787,11 @@ function populateEnrichmentTable() {
     </tr>`;
   });
 
-  // Use ACR from bulk if available, otherwise estimate
-  const acrFromProduct = currentProduct.acr_score;
-  const acr = acrFromProduct || Math.min(Math.round((filled / Math.max(filled + 5, 15)) * 100), 70);
-
-  document.getElementById('acr-before-val').textContent = acr + '%';
-  document.getElementById('acr-before-detail').textContent = `${filled} attributes extracted`;
+  document.getElementById('acr-before-val').textContent = acrData.acr + '%';
+  document.getElementById('acr-before-detail').textContent = `${acrData.filled} of ${acrData.total} attributes filled`;
 
   const circle = document.getElementById('acr-before-circle');
-  circle.className = 'acr-circle ' + (acr < 50 ? 'low' : acr < 75 ? 'medium' : 'high');
+  circle.className = 'acr-circle ' + (acrData.acr < 50 ? 'low' : acrData.acr < 75 ? 'medium' : 'high');
 }
 
 // ── 4a: RUN ENRICHMENT (PDP gap-fill first, then standard) ─
@@ -829,7 +858,8 @@ async function runEnrichment() {
         productData: cleanProductData(currentProduct),
         category: (currentProduct.category && currentProduct.category.category)
           ? currentProduct.category.category + ' > ' + (currentProduct.category.class || '')
-          : 'General'
+          : 'General',
+        classId: currentProduct.category ? currentProduct.category.classId : null
       })
     });
     const json = await res.json();
@@ -861,14 +891,18 @@ async function runEnrichment() {
       </tr>`;
     });
 
-    // Update ACR scores
-    const acrBefore = enriched.acr_before || 45;
-    const acrAfter = enriched.acr_after || 94;
+    // Compute real ACR after enrichment (don't trust LLM hallucinated values)
+    const bulkIdx = currentProduct._bulkIndex;
+    const tpl = (bulkIdx !== undefined && pipelineState.templates[bulkIdx]) ? pipelineState.templates[bulkIdx].template : null;
+    const acrBeforeData = computeACR(currentProduct, tpl);
+    // Build a temp product with enriched attributes to compute after
+    const enrichedProduct = { ...currentProduct, attributes: enriched.enriched_attributes };
+    const acrAfterData = computeACR(enrichedProduct, tpl);
 
-    document.getElementById('acr-before-val').textContent = Math.round(acrBefore) + '%';
+    document.getElementById('acr-before-val').textContent = acrBeforeData.acr + '%';
     document.getElementById('acr-after-card').style.display = 'block';
-    document.getElementById('acr-after-val').textContent = Math.round(acrAfter) + '%';
-    document.getElementById('acr-improvement').innerHTML = `&#x2B06; +${Math.round(acrAfter - acrBefore)}% &mdash; ${enriched.gaps_filled || gapsFilled} gaps filled`;
+    document.getElementById('acr-after-val').textContent = acrAfterData.acr + '%';
+    document.getElementById('acr-improvement').innerHTML = `&#x2B06; +${acrAfterData.acr - acrBeforeData.acr}% &mdash; ${gapsFilled} gaps filled`;
 
     // Show sources consulted
     if (enriched.sources_consulted && enriched.sources_consulted.length) {
@@ -1071,51 +1105,22 @@ function refreshDashboard() {
   const issuesList = [];
 
   products.forEach((p, idx) => {
-    const attrs = p.attributes || {};
-    const attrKeys = Object.keys(attrs);
-    let filled = 0;
-    const missingNames = [];
+    const bulkIdx = p._bulkIndex !== undefined ? p._bulkIndex : undefined;
+    const tpl = (bulkIdx !== undefined && pipelineState.templates[bulkIdx]) ? pipelineState.templates[bulkIdx].template : null;
+    const acrData = computeACR(p, tpl);
 
-    // Count filled attributes (have non-empty value)
-    attrKeys.forEach(key => {
-      const val = typeof attrs[key] === 'object' ? attrs[key].value : attrs[key];
-      if (val && val !== 'null' && val !== 'N/A' && val !== '') {
-        filled++;
-      } else {
-        missingNames.push(key);
-      }
-    });
-
-    // Cross-reference against KB template — find required attrs NOT in extracted data at all
-    const bulkIdx = p._bulkIndex !== undefined ? p._bulkIndex : idx;
-    const tpl = pipelineState.templates[bulkIdx] ? pipelineState.templates[bulkIdx].template : null;
-    if (tpl) {
-      const allRequired = [...(tpl.required || []), ...(tpl.optional || [])];
-      allRequired.forEach(reqAttr => {
-        const found = attrKeys.find(k => k.toLowerCase() === reqAttr.toLowerCase());
-        if (!found) {
-          missingNames.push(reqAttr);
-        }
-      });
-    }
-
-    const missing = missingNames.length;
-    // Total = filled + missing (real total including template gaps)
-    const total = filled + missing;
-    const acr = total > 0 ? Math.round((filled / total) * 100) : 0;
-
-    totalFilled += filled;
-    totalRequired += total;
-    totalMissing += missing;
+    totalFilled += acrData.filled;
+    totalRequired += acrData.total;
+    totalMissing += acrData.missing;
 
     const name = p.product_name || p._productId || 'Unknown';
-    productStats.push({ name, acr, filled, total, missing });
+    productStats.push({ name, acr: acrData.acr, filled: acrData.filled, total: acrData.total, missing: acrData.missing });
 
-    if (missing > 0) {
+    if (acrData.missing > 0) {
       issuesList.push({
         product: name,
-        issue: `Missing ${missingNames.slice(0, 3).join(', ')}${missingNames.length > 3 ? ` (+${missingNames.length - 3} more)` : ''}`,
-        count: missing
+        issue: `Missing ${acrData.missingNames.slice(0, 3).join(', ')}${acrData.missingNames.length > 3 ? ` (+${acrData.missingNames.length - 3} more)` : ''}`,
+        count: acrData.missing
       });
     }
   });
@@ -1794,6 +1799,7 @@ async function runWizardDedup() {
 
     const data = json.data;
     const groups = data.duplicate_groups || [];
+    pipelineState.dedupGroups = groups; // Store for finishWizard to apply merge decisions
     const container = document.getElementById('wiz-dedup-container');
 
     if (groups.length === 0) {
@@ -1862,18 +1868,32 @@ function wizDedupDecision(groupIdx, decision, btn) {
 
 // ── FINISH WIZARD → SEND TO ENRICHMENT ────────────────────
 function finishWizard() {
+  // Build set of product indices to exclude (merged duplicates)
+  const excludedIndices = new Set();
+  if (pipelineState.dedupGroups) {
+    pipelineState.dedupGroups.forEach((group, gi) => {
+      if (pipelineState.dedupDecisions[gi] === 'merge') {
+        group.products.forEach(p => {
+          if (!p.is_primary && p.index !== undefined) excludedIndices.add(p.index);
+        });
+      }
+    });
+  }
+
   // Build enrichment product list from wizard data
   const processed = [];
   bulkProducts.forEach((bp, i) => {
+    if (excludedIndices.has(i)) return; // Skip merged duplicates
+
     const extracted = pipelineState.extractedData[i] || {};
     const cat = pipelineState.categories[i] || {};
 
-    // Merge extracted attrs with user edits
+    // Merge extracted attrs with user edits (use regex to avoid prefix collision for indices 1 vs 10)
     const mergedAttrs = { ...(extracted.attributes || {}) };
     Object.keys(pipelineState.userEdits).forEach(key => {
-      if (key.startsWith(`${i}_`)) {
-        const attrName = key.substring(String(i).length + 1);
-        mergedAttrs[attrName] = {
+      const match = key.match(/^(\d+)_(.+)$/);
+      if (match && parseInt(match[1]) === i) {
+        mergedAttrs[match[2]] = {
           value: pipelineState.userEdits[key],
           confidence: 1.0,
           source: 'user_edit'
@@ -1890,7 +1910,7 @@ function finishWizard() {
       description: bp.description || '',
       attributes: mergedAttrs,
       specifications: {},
-      category: { category: cat.category || '', class: cat.class || '', confidence: cat.confidence || 0 },
+      category: { category: cat.category || '', class: cat.class || '', classId: cat.classId || '', confidence: cat.confidence || 0 },
       _imageUrl: bp.image_urls[0] || null,
       _productId: bp.product_id,
       pdp_url: bp.pdp_url || '',
@@ -2010,12 +2030,13 @@ async function runProductDQ() {
   const product = products[idx];
   if (!product) return;
 
-  // Try to get template from pipeline state, fall back to null (server will handle)
+  // Try to get template — use _bulkIndex first, then fall back
   let template = null;
-  if (pipelineState.templates[idx]) {
+  const bulkIdx = product._bulkIndex;
+  if (bulkIdx !== undefined && pipelineState.templates[bulkIdx]) {
+    template = pipelineState.templates[bulkIdx].template;
+  } else if (pipelineState.templates[idx]) {
     template = pipelineState.templates[idx].template;
-  } else if (product._bulkIndex !== undefined && pipelineState.templates[product._bulkIndex]) {
-    template = pipelineState.templates[product._bulkIndex].template;
   }
 
   showLoading('Running DQ Check', `Analyzing data quality for ${product.product_name}...`);
@@ -2030,7 +2051,8 @@ async function runProductDQ() {
           product_name: product.product_name,
           description: product.description || '',
           category: product.category ? (product.category.category + ' > ' + (product.category.class || '')) : '',
-          attributes: product.attributes || {}
+          classId: product.category ? product.category.classId : null,
+          attributes: { ...(product.attributes || {}), ...(product.specifications || {}) }
         },
         template
       })
