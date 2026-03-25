@@ -569,7 +569,10 @@
       </div>
 
       <div id="enrichment-done" style="display:none;margin-top:20px">
-        <button class="btn btn-primary" onclick="sendToAthena()">Send to Athena DQ &#x2192;</button>
+        <div style="display:flex;gap:12px">
+          <button class="btn btn-primary" onclick="sendToAthena()">Send to Athena DQ &#x2192;</button>
+          <button class="btn btn-success" onclick="exportEnrichedData()">&#x1F4E5; Export Enriched Data (.xlsx)</button>
+        </div>
       </div>
     </div>
 

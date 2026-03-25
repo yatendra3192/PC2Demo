@@ -1752,6 +1752,80 @@ app.get('/api/kb/context/:classId', (req, res) => {
   }
 });
 
+// ── EXPORT ENRICHED DATA ─────────────────────────────────
+app.post('/api/export/enriched', (req, res) => {
+  try {
+    const XLSX = require('xlsx');
+    const { products } = req.body;
+    if (!products || products.length === 0) {
+      return res.status(400).json({ success: false, error: 'No products to export' });
+    }
+
+    // Collect all unique attribute names across all products
+    const allAttrNames = new Set();
+    products.forEach(p => {
+      Object.keys(p.attributes || {}).forEach(k => allAttrNames.add(k));
+    });
+    const attrList = Array.from(allAttrNames).sort();
+
+    // Build rows
+    const rows = products.map(p => {
+      const row = {
+        'SKU': p.product_id || p._productId || '',
+        'Product Name': p.product_name || '',
+        'Brand': p.brand || '',
+        'Category': p.category ? (p.category.category || '') : '',
+        'Class': p.category ? (p.category.class || '') : '',
+        'Description': p.description || '',
+      };
+
+      // Add generated copy if available
+      if (p.generated_copy) {
+        row['Generated Title'] = p.generated_copy.product_title || '';
+        row['Generated Description'] = p.generated_copy.short_description || '';
+        row['Long Description'] = p.generated_copy.long_description || '';
+        if (p.generated_copy.bullet_points) {
+          p.generated_copy.bullet_points.forEach((b, i) => {
+            row[`Feature Bullet ${i + 1}`] = b;
+          });
+        }
+        row['SEO Keywords'] = (p.generated_copy.seo_keywords || []).join(', ');
+      }
+
+      // Add each attribute with value, confidence, source
+      attrList.forEach(attrName => {
+        const attr = (p.attributes || {})[attrName];
+        if (attr) {
+          const val = typeof attr === 'object' ? attr : { value: attr };
+          row[attrName] = val.value || '';
+          row[`${attrName} — Confidence`] = val.confidence !== undefined ? Math.round((val.confidence > 1 ? val.confidence : val.confidence * 100)) + '%' : '';
+          const src = val.sources ? (Array.isArray(val.sources) ? val.sources.join(', ') : val.sources) : (val.source || '');
+          row[`${attrName} — Source`] = src;
+        } else {
+          row[attrName] = '';
+          row[`${attrName} — Confidence`] = '';
+          row[`${attrName} — Source`] = '';
+        }
+      });
+
+      return row;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Enriched Products');
+
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="PC2_Enriched_Products.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    console.error('Export error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ── CATALOG DATA LOOKUP ──────────────────────────────────
 let catalogCache = null;
 

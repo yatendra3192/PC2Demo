@@ -2139,6 +2139,49 @@ function finishWizard() {
   switchEnrichProduct(0);
 }
 
+// ── EXPORT ENRICHED DATA ──────────────────────────────────
+async function exportEnrichedData() {
+  const products = enrichProductList.length > 0 ? enrichProductList : allIngestedProducts;
+  if (products.length === 0) {
+    alert('No products to export. Run enrichment first.');
+    return;
+  }
+
+  showLoading('Exporting', 'Building Excel file with all enriched data...');
+
+  try {
+    const res = await fetch('/api/export/enriched', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products: products.map(p => ({
+        product_id: p._productId || p.product_id,
+        product_name: p.product_name,
+        brand: p.brand || '',
+        category: p.category,
+        description: p.description || '',
+        attributes: p.attributes || {},
+        generated_copy: p.generated_copy || null
+      }))})
+    });
+    hideLoading();
+
+    if (!res.ok) throw new Error('Export failed');
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'PC2_Enriched_Products.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    hideLoading();
+    alert('Export error: ' + err.message);
+  }
+}
+
 // ── IMAGE GENERATION (IMAGEN 3) ───────────────────────────
 async function generateLifestyleImage() {
   if (!currentProduct) return;
