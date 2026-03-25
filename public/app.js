@@ -54,9 +54,22 @@ function confidenceBadge(score) {
 }
 
 // Compute ACR consistently across all views (enrichment, dashboard, DQ)
+// Attributes to exclude from display and ACR (system/taxonomy fields, not product attributes)
+const EXCLUDED_ATTRS = new Set([
+  'taxonomy level 1', 'taxonomy level 2', 'taxonomy level 3', 'taxonomy level 4',
+  'classpath', 'sub brand', 'feature bullets 4', 'feature bullets 5',
+  'feature bullets 6', 'feature bullets 7', 'feature bullets 8',
+  'feature bullets 9', 'feature bullets 10', 'object type name',
+  'parent leaf guid', 'sku id', 'omsid', 'file action'
+]);
+
+function isExcludedAttr(name) {
+  return EXCLUDED_ATTRS.has((name || '').toLowerCase());
+}
+
 function computeACR(product, template) {
   const attrs = { ...(product.attributes || {}), ...(product.specifications || {}) };
-  const attrKeys = Object.keys(attrs);
+  const attrKeys = Object.keys(attrs).filter(k => !isExcludedAttr(k));
   let filled = 0;
   const missingNames = [];
 
@@ -71,7 +84,7 @@ function computeACR(product, template) {
 
   // Cross-reference against template — required attrs not in extracted data
   if (template) {
-    const allTemplateAttrs = [...(template.required || []), ...(template.optional || [])];
+    const allTemplateAttrs = [...(template.required || []), ...(template.optional || [])].filter(a => !isExcludedAttr(a));
     allTemplateAttrs.forEach(reqAttr => {
       const found = attrKeys.find(k => k.toLowerCase() === reqAttr.toLowerCase());
       if (!found) missingNames.push(reqAttr);
@@ -799,8 +812,8 @@ function populateEnrichmentTable() {
 
   function isMissingVal(v) { return !v || v === 'null' || v === 'N/A' || v === 'undefined' || v === 'None'; }
 
-  // Render filled attributes first
-  attrKeys.forEach(key => {
+  // Render filled attributes first (skip excluded system fields)
+  attrKeys.filter(k => !isExcludedAttr(k)).forEach(key => {
     const val = typeof attrs[key] === 'object' ? attrs[key] : { value: attrs[key], confidence: 0.9 };
     if (isMissingVal(val.value)) return;
     const isMandatory = tpl && (tpl.required || []).some(r => r.toLowerCase() === key.toLowerCase());
@@ -818,7 +831,7 @@ function populateEnrichmentTable() {
     const allTemplate = [
       ...((tpl.required || []).map(a => ({ name: a, mandatory: true }))),
       ...((tpl.optional || []).map(a => ({ name: a, mandatory: false })))
-    ];
+    ].filter(a => !isExcludedAttr(a.name));
     allTemplate.forEach(attr => {
       const found = attrKeys.find(k => k.toLowerCase() === attr.name.toLowerCase());
       if (found) {
@@ -974,7 +987,7 @@ async function runEnrichment() {
     function isMissingVal(v) { return !v || v === 'null' || v === 'N/A' || v === 'undefined'; }
 
     const allAttrs = currentProduct.attributes || {};
-    Object.entries(allAttrs).forEach(([key, val]) => {
+    Object.entries(allAttrs).filter(([key]) => !isExcludedAttr(key)).forEach(([key, val]) => {
       const v = typeof val === 'object' ? val : { value: val, confidence: 0.9, source: 'product_data' };
       if (isMissingVal(v.value)) return;
       const wasFilled = v.was_missing;
@@ -988,7 +1001,7 @@ async function runEnrichment() {
 
     // Show remaining missing template attributes
     if (tpl) {
-      const allTemplate = [...(tpl.required || []), ...(tpl.optional || [])];
+      const allTemplate = [...(tpl.required || []), ...(tpl.optional || [])].filter(a => !isExcludedAttr(a));
       allTemplate.forEach(attr => {
         const found = Object.keys(allAttrs).find(k => k.toLowerCase() === attr.toLowerCase());
         if (found && !isMissingVal(typeof allAttrs[found] === 'object' ? allAttrs[found].value : allAttrs[found])) return;
