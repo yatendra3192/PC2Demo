@@ -676,6 +676,21 @@
           <!-- Breakdown Cards -->
           <div class="dashboard-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px" id="dq-breakdown-grid">
           </div>
+          <!-- Attribute Detail Table -->
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+              <span>Attribute Check Results</span>
+              <span style="font-size:12px;color:var(--gray-500)" id="dq-attr-summary"></span>
+            </div>
+            <div class="card-body" style="padding:0;max-height:400px;overflow-y:auto">
+              <table class="attr-table" style="font-size:12px">
+                <thead>
+                  <tr><th>Attribute</th><th>Value</th><th>Source</th><th>Confidence</th><th style="width:60px">Check</th></tr>
+                </thead>
+                <tbody id="dq-attr-detail-body"></tbody>
+              </table>
+            </div>
+          </div>
           <!-- Recommendations -->
           <div class="card" id="dq-recommendations-card">
             <div class="card-header">Recommendations</div>

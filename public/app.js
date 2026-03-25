@@ -2450,6 +2450,65 @@ async function runProductDQ() {
       </div>`;
     });
 
+    // Attribute detail table with pass/fail
+    const attrBody = document.getElementById('dq-attr-detail-body');
+    attrBody.innerHTML = '';
+    const allAttrs = { ...(product.attributes || {}), ...(product.specifications || {}) };
+    const missingSet = new Set((dq.breakdown.completeness && dq.breakdown.completeness.missing || []).map(m => m.toLowerCase()));
+    const formatIssueSet = new Set((dq.breakdown.format && dq.breakdown.format.issues || []).map(i => {
+      const match = i.match(/^([^:]+):/); return match ? match[1].trim().toLowerCase() : '';
+    }).filter(Boolean));
+    const rangeIssueSet = new Set((dq.breakdown.range && dq.breakdown.range.issues || []).map(i => {
+      const match = i.match(/^([^:]+):/); return match ? match[1].trim().toLowerCase() : '';
+    }).filter(Boolean));
+
+    let passCount = 0, failCount = 0;
+
+    // Show filled attributes with pass/fail
+    Object.entries(allAttrs).filter(([k]) => !isExcludedAttr(k)).forEach(([key, attr]) => {
+      const val = typeof attr === 'object' ? attr : { value: attr, confidence: 0.9, source: '' };
+      const v = val.value || '';
+      const lk = key.toLowerCase();
+      const isMissing = !v || ['null','n/a','na','undefined','none'].includes(v.trim().toLowerCase());
+      const hasFormatIssue = formatIssueSet.has(lk);
+      const hasRangeIssue = rangeIssueSet.has(lk);
+      const hasFail = isMissing || hasFormatIssue || hasRangeIssue;
+
+      if (hasFail) failCount++; else passCount++;
+
+      const checkBadge = hasFail
+        ? `<span style="color:var(--red);font-weight:700;font-size:12px">FAIL</span>`
+        : `<span style="color:var(--green);font-weight:700;font-size:12px">PASS</span>`;
+      const src = val.sources ? (Array.isArray(val.sources) ? val.sources.join(', ') : val.sources) : (val.source || '');
+      const conf = val.confidence ? confidenceBadge(val.confidence) : '';
+
+      attrBody.innerHTML += `<tr style="${hasFail ? 'background:rgba(192,57,43,0.04)' : ''}">
+        <td class="field-name">${key}</td>
+        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isMissing ? '<span style="color:var(--red);font-style:italic">missing</span>' : escapeForHtml(String(v))}</td>
+        <td>${!isMissing && src ? sourceTag(src) : ''}</td>
+        <td>${!isMissing ? conf : ''}</td>
+        <td style="text-align:center">${checkBadge}</td>
+      </tr>`;
+    });
+
+    // Show missing template attributes as FAIL
+    if (template) {
+      const allTemplateAttrs = [...(template.required || []), ...(template.optional || [])].filter(a => !isExcludedAttr(a));
+      allTemplateAttrs.forEach(attr => {
+        const found = Object.keys(allAttrs).find(k => k.toLowerCase() === attr.toLowerCase());
+        if (found) return; // Already shown above
+        failCount++;
+        attrBody.innerHTML += `<tr style="background:rgba(192,57,43,0.04)">
+          <td class="field-name">${attr}</td>
+          <td><span style="color:var(--red);font-style:italic">missing</span></td>
+          <td></td><td></td>
+          <td style="text-align:center"><span style="color:var(--red);font-weight:700;font-size:12px">FAIL</span></td>
+        </tr>`;
+      });
+    }
+
+    document.getElementById('dq-attr-summary').textContent = `${passCount} passed, ${failCount} failed`;
+
     // Recommendations
     const recsContainer = document.getElementById('dq-recommendations');
     recsContainer.innerHTML = '';
