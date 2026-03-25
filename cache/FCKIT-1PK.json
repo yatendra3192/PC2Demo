@@ -1,0 +1,142 @@
+{
+  "product_name": "Rain Bird Faucet Connection Kit (Backflow Preventer + Regulator + Filter)",
+  "brand": "Rain Bird",
+  "model_number": null,
+  "attributes": {
+    "Type": {
+      "value": "Faucet Connection Kit",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Body Material": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Expandability": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Angle": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "ASTM Rating": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Object Type Name": {
+      "value": "Faucet Connection Kit",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "ID": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "SKU ID": {
+      "value": "FCKIT-1PK",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Parent Leaf GUID": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Final Description": {
+      "value": "The Rain Bird Faucet Connection Kit provides everything needed to connect a drip irrigation system to a standard outdoor hose faucet. Includes an integrated backflow preventer, 25 PSI pressure regulator, and 150-mesh filter in a single compact assembly. Simply thread onto any 3/4\" hose bib and connect drip tubing.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 1": {
+      "value": "Provides everything needed to connect a drip irrigation system to a standard outdoor hose faucet.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 2": {
+      "value": "Includes an integrated backflow preventer, 25 PSI pressure regulator, and 150-mesh filter in a single compact assembly.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 3": {
+      "value": "Simply thread onto any 3/4\" hose bib and connect drip tubing.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Product long description": {
+      "value": "The Rain Bird Faucet Connection Kit provides everything needed to connect a drip irrigation system to a standard outdoor hose faucet. Includes an integrated backflow preventer, 25 PSI pressure regulator, and 150-mesh filter in a single compact assembly. Simply thread onto any 3/4\" hose bib and connect drip tubing.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Item": {
+      "value": "Faucet Connection Kit",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Connection size": {
+      "value": "3/4\"",
+      "confidence": 0.9,
+      "sources": [
+        "description"
+      ],
+      "required": false
+    },
+    "Regulating Pressure": {
+      "value": "25 PSI",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": false
+    }
+  },
+  "missing_attributes": [
+    "Body Material",
+    "Expandability",
+    "Angle",
+    "ASTM Rating",
+    "ID",
+    "Parent Leaf GUID"
+  ],
+  "extraction_summary": "Extracted attributes from the product description and inferred the object type name.",
+  "_productId": "FCKIT-1PK",
+  "_imageUrl": "https://store.rainbird.com/media/catalog/product/f/c/fckit1pkprod1hr.jpg"
+}

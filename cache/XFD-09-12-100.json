@@ -1,0 +1,233 @@
+{
+  "product_name": "Rain Bird XFD On-Surface Dripline – 0.9 GPH, 12\" Spacing, 100 ft",
+  "brand": "Rain Bird",
+  "model_number": "XFD-09-12-100",
+  "attributes": {
+    "Type": {
+      "value": "Dripline",
+      "confidence": 0.9,
+      "sources": [
+        "pdf",
+        "description"
+      ],
+      "required": true
+    },
+    "Body Material": {
+      "value": "polyethylene",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Expandability": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Angle": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "ASTM Rating": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Parent Leaf GUID": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "ID": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "SKU ID": {
+      "value": "XFD-09-12-100",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Final Description": {
+      "value": "The Rain Bird XFD is a pressure-compensating on-surface dripline with dual-layered tubing (brown over black) for superior UV and chemical resistance. Designed for landscape beds, gardens, and non-turf areas, it delivers uniform flow across a wide pressure range of 8.5 to 60 PSI. Its extreme flexibility allows tight 3-inch bends with fewer fittings.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Product long description": {
+      "value": "The Rain Bird XFD is a pressure-compensating on-surface dripline with dual-layered tubing (brown over black) for superior UV and chemical resistance. Designed for landscape beds, gardens, and non-turf areas, it delivers uniform flow across a wide pressure range of 8.5 to 60 PSI. Its extreme flexibility allows tight 3-inch bends with fewer fittings.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 1": {
+      "value": "Pressure-compensating",
+      "confidence": 0.9,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Feature Bullets 2": {
+      "value": "Dual-layered tubing for UV and chemical resistance",
+      "confidence": 0.9,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Feature Bullets 3": {
+      "value": "Flexible, kink-resistant tubing",
+      "confidence": 0.9,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Product Brand Name": {
+      "value": "Rain Bird",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Series": {
+      "value": "XFD",
+      "confidence": 1,
+      "sources": [
+        "pdf",
+        "description"
+      ],
+      "required": true
+    },
+    "Unbranded": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Color": {
+      "value": "brown",
+      "confidence": 0.9,
+      "sources": [
+        "description",
+        "image",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Coil Length": {
+      "value": "100 ft",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Dripper Spacing": {
+      "value": "12\"",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Includes": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Inside Diameter": {
+      "value": "0.536\"",
+      "confidence": 1,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Outside Diameter": {
+      "value": "0.634\"",
+      "confidence": 1,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Selling Unit": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Tube Material": {
+      "value": "polyethylene",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Item": {
+      "value": "Dripline",
+      "confidence": 0.9,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Flow Rate": {
+      "value": "0.9 gph",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": false
+    },
+    "Maximum Operating Pressure": {
+      "value": "60 psi",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": false
+    },
+    "Minimum Operating Pressure": {
+      "value": "8.5 psi",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": false
+    }
+  },
+  "missing_attributes": [],
+  "extraction_summary": "Extracted all required attributes from the description and PDF.  Confirmed color from the image.",
+  "_productId": "XFD-09-12-100",
+  "_imageUrl": "https://store.rainbird.com/media/catalog/product/x/4/x44000_and_x44030_1.jpg"
+}

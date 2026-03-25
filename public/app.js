@@ -1764,31 +1764,40 @@ async function runDataExtraction() {
     select.appendChild(opt);
   });
 
-  for (let i = 0; i < total; i++) {
-    const product = bulkProducts[i];
-    const template = pipelineState.templates[i] ? pipelineState.templates[i].template : { required: [], optional: [] };
+  // Process in parallel batches of 3 for speed
+  const BATCH_SIZE = 3;
+  let completed = 0;
 
-    document.getElementById('wiz-extract-progress-text').textContent = `${i + 1} / ${total}`;
-    document.getElementById('wiz-extract-progress-bar').style.width = `${Math.round(((i + 0.5) / total) * 100)}%`;
+  for (let batch = 0; batch < total; batch += BATCH_SIZE) {
+    const batchEnd = Math.min(batch + BATCH_SIZE, total);
+    const promises = [];
 
-    try {
-      const res = await fetch('/api/ingest/bulk/extract-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product, template })
-      });
-      const json = await res.json();
+    for (let i = batch; i < batchEnd; i++) {
+      const product = bulkProducts[i];
+      const template = pipelineState.templates[i] ? pipelineState.templates[i].template : { required: [], optional: [] };
 
-      if (json.success) {
-        pipelineState.extractedData[i] = json.data;
-      } else {
-        pipelineState.extractedData[i] = { error: json.error, attributes: {} };
-      }
-    } catch (err) {
-      pipelineState.extractedData[i] = { error: err.message, attributes: {} };
+      promises.push(
+        fetch('/api/ingest/bulk/extract-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product, template })
+        })
+        .then(res => res.json())
+        .then(json => {
+          pipelineState.extractedData[i] = json.success ? json.data : { error: json.error, attributes: {} };
+        })
+        .catch(err => {
+          pipelineState.extractedData[i] = { error: err.message, attributes: {} };
+        })
+        .finally(() => {
+          completed++;
+          document.getElementById('wiz-extract-progress-text').textContent = `${completed} / ${total}`;
+          document.getElementById('wiz-extract-progress-bar').style.width = `${Math.round((completed / total) * 100)}%`;
+        })
+      );
     }
 
-    document.getElementById('wiz-extract-progress-bar').style.width = `${Math.round(((i + 1) / total) * 100)}%`;
+    await Promise.all(promises);
   }
 
   document.getElementById('wiz-extract-progress-text').textContent = `${total} / ${total}`;

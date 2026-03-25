@@ -1,0 +1,242 @@
+{
+  "product_name": "Rain Bird Landscape & Garden Drip Watering Kit",
+  "brand": "Rain Bird",
+  "model_number": "LNDDRIPKIT",
+  "attributes": {
+    "Type": {
+      "value": "Drip Watering Kit",
+      "confidence": 0.9,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Body Material": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Expandability": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Angle": {
+      "value": "180°, 360°",
+      "confidence": 0.7,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "ASTM Rating": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Object Type Name": {
+      "value": "Drip Irrigation Kit",
+      "confidence": 0.8,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "ID": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "SKU ID": {
+      "value": "LNDDRIPKIT",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Parent Leaf GUID": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Final Description": {
+      "value": "The Rain Bird Landscape & Garden Drip Watering Kit contains everything needed to install a complete drip irrigation system covering up to 250 square feet. Includes a hose-thread pressure regulator, filter, mainline tubing, distribution tubing, adjustable emitters, micro-sprayers, and all fittings. Step-by-step illustrated guide included.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 1": {
+      "value": "Covers up to 250 square feet",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 2": {
+      "value": "Includes hose-thread pressure regulator",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 3": {
+      "value": "Includes filter, mainline tubing, distribution tubing, adjustable emitters, micro-sprayers, and all fittings",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Product long description": {
+      "value": "The Rain Bird Landscape & Garden Drip Watering Kit contains everything needed to install a complete drip irrigation system covering up to 250 square feet. Includes a hose-thread pressure regulator, filter, mainline tubing, distribution tubing, adjustable emitters, micro-sprayers, and all fittings. Step-by-step illustrated guide included.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Item": {
+      "value": "Drip Watering Kit",
+      "confidence": 0.9,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Connection 2 Size": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Connection size": {
+      "value": "3/4\"",
+      "confidence": 0.6,
+      "sources": [
+        "pdf"
+      ],
+      "required": false
+    },
+    "Dimensions": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "SiteOne Item #": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "UE Item #": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Taxonomy Level 1": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Taxonomy Level 2": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Taxonomy Level 3": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Taxonomy Level 4": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Classpath": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Feature Bullets 4": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Feature Bullets 5": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Feature Bullets 6": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Feature Bullets 7": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Feature Bullets 8": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Feature Bullets 9": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Feature Bullets 10": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Regulating Pressure": {
+      "value": "25 psi",
+      "confidence": 0.7,
+      "sources": [
+        "pdf"
+      ],
+      "required": false
+    }
+  },
+  "missing_attributes": [
+    "Body Material",
+    "Expandability",
+    "ASTM Rating",
+    "ID",
+    "Parent Leaf GUID"
+  ],
+  "extraction_summary": "Extracted product name, brand, model number, SKU ID, final description, product long description, object type name, item, and feature bullets from the product description. Type, Angle, Connection size, and Regulating Pressure were extracted from the PDF.",
+  "_productId": "LNDDRIPKIT",
+  "_imageUrl": "https://store.rainbird.com/media/catalog/product/l/n/lnddripkit-product.jpg"
+}

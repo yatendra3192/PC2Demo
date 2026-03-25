@@ -1,0 +1,213 @@
+{
+  "product_name": "Eco-Logic 4-Station Basic Indoor Controller",
+  "brand": "Hunter",
+  "model_number": "ELC-401i-E",
+  "attributes": {
+    "Body Material": {
+      "value": "Plastic",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Expandability": {
+      "value": "null",
+      "confidence": 0.5,
+      "sources": [],
+      "required": false
+    },
+    "Angle": {
+      "value": "null",
+      "confidence": 0.5,
+      "sources": [],
+      "required": false
+    },
+    "ASTM Rating": {
+      "value": "null",
+      "confidence": 0.5,
+      "sources": [],
+      "required": false
+    },
+    "Enclosure": {
+      "value": "null",
+      "confidence": 0.5,
+      "sources": [],
+      "required": true
+    },
+    "Housing Material": {
+      "value": "Plastic",
+      "confidence": 0.8,
+      "sources": [
+        "pdf"
+      ],
+      "required": false
+    },
+    "Indoor/Outdoor": {
+      "value": "Indoor",
+      "confidence": 0.9,
+      "sources": [
+        "pdf",
+        "description"
+      ],
+      "required": true
+    },
+    "Number Of Stations": {
+      "value": "4",
+      "confidence": 1,
+      "sources": [
+        "pdf",
+        "description"
+      ],
+      "required": true
+    },
+    "Product Brand Name": {
+      "value": "Hunter",
+      "confidence": 1,
+      "sources": [
+        "image",
+        "pdf",
+        "description"
+      ],
+      "required": true
+    },
+    "Series": {
+      "value": "Eco-Logic",
+      "confidence": 0.9,
+      "sources": [
+        "pdf",
+        "image"
+      ],
+      "required": true
+    },
+    "Station Type": {
+      "value": "fixed",
+      "confidence": 0.8,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Product long description": {
+      "value": "The Hunter Eco-Logic is an entry-level residential irrigation controller with a simple dial interface for easy programming. Available in 4 and 6 station models, it provides reliable automated watering with 3 programs, manual start, and seasonal adjustment from 10% to 150%.",
+      "confidence": 0.9,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 1": {
+      "value": "2 programs with 4 start times each, and up to 4-hour run times",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Feature Bullets 2": {
+      "value": "QuickCheck™ Technology provides simple diagnostics of faulty field wiring",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Feature Bullets 3": {
+      "value": "Suspend irrigation up to 7 days during the off-season",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Final Description": {
+      "value": "The reliable Eco Logic Controller is the first choice for small residential areas and has the option for water-saving accessories.",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Type": {
+      "value": "Controller",
+      "confidence": 0.9,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Item": {
+      "value": "null",
+      "confidence": 0.5,
+      "sources": [],
+      "required": true
+    },
+    "Color": {
+      "value": "null",
+      "confidence": 0.5,
+      "sources": [],
+      "required": true
+    },
+    "Number of Station": {
+      "value": "4",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Mounting Type": {
+      "value": "null",
+      "confidence": 0.5,
+      "sources": [],
+      "required": true
+    },
+    "Power Source": {
+      "value": "Transformer",
+      "confidence": 0.8,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Sensor Compatible": {
+      "value": "Yes",
+      "confidence": 0.8,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Max Station Run Time": {
+      "value": "4 hours",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Includes": {
+      "value": "null",
+      "confidence": 0.5,
+      "sources": [],
+      "required": true
+    },
+    "Smart Technology": {
+      "value": "null",
+      "confidence": 0.5,
+      "sources": [],
+      "required": true
+    }
+  },
+  "missing_attributes": [
+    "Mounting Type",
+    "Item",
+    "Color",
+    "Includes",
+    "Smart Technology"
+  ],
+  "extraction_summary": "Extracted attributes from product description, PDF, and image. Key attributes like brand, model, number of stations, indoor/outdoor, and series were identified. Some attributes were not found and listed as missing.",
+  "_productId": "ELC-401i-E",
+  "_imageUrl": "https://www.hunterirrigation.com/sites/default/files/styles/media_original/public/pd-eco-logic_0.jpg"
+}

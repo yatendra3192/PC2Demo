@@ -1,0 +1,204 @@
+{
+  "product_name": "Toro DL2000 Series Subsurface Dripline with ROOTGUARD – 12\" Spacing, 100 ft",
+  "brand": "Toro",
+  "model_number": "DL2000-12-100",
+  "attributes": {
+    "Type": {
+      "value": "Dripline",
+      "confidence": 0.9,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Body Material": {
+      "value": "Polyethylene",
+      "confidence": 0.8,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Expandability": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Angle": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "ASTM Rating": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Parent Leaf GUID": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "ID": {
+      "value": "DL2000-12-100",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "SKU ID": {
+      "value": "DL2000-12-100",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Final Description": {
+      "value": "The Toro DL2000 is a pressure-compensating subsurface dripline featuring patented ROOTGUARD technology with Treflan herbicide impregnated in the emitter to prevent root intrusion. It can be installed at grade or buried 4-8 inches underground, virtually eliminating evaporation and wind-related water loss.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Product long description": {
+      "value": "The Toro DL2000 is a pressure-compensating subsurface dripline featuring patented ROOTGUARD technology with Treflan herbicide impregnated in the emitter to prevent root intrusion. It can be installed at grade or buried 4-8 inches underground, virtually eliminating evaporation and wind-related water loss.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 1": {
+      "value": "Pressure-Compensating Self-cleaning Emitters",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Feature Bullets 2": {
+      "value": "ROOTGUARD impregnated emitters are inseparably welded to the inside wall of durable polyethylene dripline tubing during manufacturing.",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Feature Bullets 3": {
+      "value": "Can be installed at grade or buried 4” – 8” underground, delivering irrigation directly to the plant’s root zone.",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Product Brand Name": {
+      "value": "Toro",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Series": {
+      "value": "DL2000",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Unbranded": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Color": {
+      "value": "Black with red stripe",
+      "confidence": 0.7,
+      "sources": [
+        "image",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Coil Length": {
+      "value": "100 ft",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Dripper Spacing": {
+      "value": "12\"",
+      "confidence": 1,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    },
+    "Includes": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Inside Diameter": {
+      "value": "0.620”",
+      "confidence": 1,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Outside Diameter": {
+      "value": "0.710”",
+      "confidence": 1,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Selling Unit": {
+      "value": "null",
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Tube Material": {
+      "value": "Polyethylene",
+      "confidence": 0.9,
+      "sources": [
+        "pdf"
+      ],
+      "required": true
+    },
+    "Item": {
+      "value": "Dripline",
+      "confidence": 0.9,
+      "sources": [
+        "description",
+        "pdf"
+      ],
+      "required": true
+    }
+  },
+  "missing_attributes": [],
+  "extraction_summary": "Extracted all required attributes from the description and PDF.  The color was extracted from the image and confirmed with the red stripe in the PDF.",
+  "_productId": "DL2000-12-100",
+  "_imageUrl": "https://cdn.thetorocompany.com/api/assetstorage/623_bb957d19-6645-4e32-bf52-42195351e2d7/Large"
+}

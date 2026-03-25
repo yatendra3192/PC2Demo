@@ -1,0 +1,96 @@
+{
+  "product_name": "Toro 570Z Installation Guide Nozzle Kit – 15 Nozzle Assortment",
+  "brand": "Toro",
+  "model_number": "570Z-IG",
+  "attributes": {
+    "Body Material": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Expandability": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Angle": {
+      "value": "90, 180, 360 degrees",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "ASTM Rating": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Type": {
+      "value": "fixed-pattern spray",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Item": {
+      "value": "Nozzle Assortment Kit",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Product long description": {
+      "value": "The Toro 570Z Nozzle Assortment Kit includes 15 of the most popular Toro 570 Series fixed-pattern spray nozzles in a convenient reusable storage case. Contains a full range of arcs (90, 180, 360 degrees) and radii (4 to 15 ft) for quick on-site nozzle changes and system tune-ups.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 1": {
+      "value": "Includes 15 of the most popular Toro 570 Series fixed-pattern spray nozzles",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 2": {
+      "value": "Comes in a convenient reusable storage case",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Feature Bullets 3": {
+      "value": "Contains a full range of arcs (90, 180, 360 degrees) and radii (4 to 15 ft)",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Final Description": {
+      "value": "The Toro 570Z Nozzle Assortment Kit includes 15 of the most popular Toro 570 Series fixed-pattern spray nozzles in a convenient reusable storage case. Contains a full range of arcs (90, 180, 360 degrees) and radii (4 to 15 ft) for quick on-site nozzle changes and system tune-ups.",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    }
+  },
+  "missing_attributes": [
+    "Body Material",
+    "Expandability"
+  ],
+  "extraction_summary": "Extracted product name, brand, and model number from the title. Extracted the item type, product description, angle and feature bullets from the description.",
+  "_productId": "570Z-IG",
+  "_imageUrl": "https://cdn.thetorocompany.com/api/assetstorage/623_0404c6c6-9592-4aeb-9553-2c7a47d01dba/Large"
+}

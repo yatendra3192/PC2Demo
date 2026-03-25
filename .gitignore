@@ -1,8 +1,8 @@
 node_modules/
 uploads/
-cache/
 .env
 server.log
 *.pdf
 *.xlsx
 !kb/*.xlsx
+!cache/*.json
