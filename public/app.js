@@ -1793,7 +1793,14 @@ async function runDataExtraction() {
 
   document.getElementById('wiz-extract-progress-text').textContent = `${total} / ${total}`;
 
-  btn.innerHTML = '&#x2705; Extracted';
+  // Count cached vs fresh
+  let cachedCount = 0;
+  for (let j = 0; j < total; j++) {
+    if (pipelineState.extractedData[j] && pipelineState.extractedData[j]._fromCache) cachedCount++;
+  }
+  btn.innerHTML = cachedCount > 0
+    ? `&#x2705; Extracted (${cachedCount} from cache, ${total - cachedCount} fresh)`
+    : '&#x2705; Extracted';
   document.getElementById('wiz-next-3').disabled = false;
 
   // Show first product
@@ -1891,9 +1898,11 @@ function showExtractedProduct(idx) {
     return !userEdit && (!d || !d.value || d.value === 'null' || d.value === 'N/A');
   }).length;
 
+  const cacheNote = data._fromCache ? '<span class="source-tag catalog" style="margin-left:8px;font-size:10px">Cached — 0 API calls</span>' : '';
+
   container.innerHTML = `
     ${missingCount > 0 ? `<div class="flow-indicator warning" style="margin-bottom:12px">&#x26A0; ${missingCount} required attribute${missingCount !== 1 ? 's' : ''} missing — highlighted in red</div>` : '<div class="flow-indicator" style="margin-bottom:12px">&#x2705; All required attributes populated</div>'}
-    <div style="font-size:13px;font-weight:600;color:var(--gray-700);margin-bottom:8px">${data.product_name || product.product_name} <span style="font-weight:400;color:var(--gray-500)">(${product.product_id})</span></div>
+    <div style="font-size:13px;font-weight:600;color:var(--gray-700);margin-bottom:8px">${data.product_name || product.product_name} <span style="font-weight:400;color:var(--gray-500)">(${product.product_id})</span>${cacheNote}</div>
     ${data.extraction_summary ? `<div style="font-size:12px;color:var(--gray-500);margin-bottom:12px">${data.extraction_summary}</div>` : ''}
     <table class="attr-table" style="font-size:12px">
       <thead>

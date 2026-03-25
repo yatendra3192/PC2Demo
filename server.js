@@ -1121,12 +1121,51 @@ app.post('/api/ingest/bulk/get-templates', (req, res) => {
   }
 });
 
-// 1e: Extract data for a single product (PDF + image + GPT-4o)
+// ── EXTRACTION CACHE (saves LLM costs on re-runs) ────────
+const CACHE_DIR = path.join(__dirname, 'cache');
+if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR);
+
+function getCacheKey(product) {
+  // Key by SKU — same SKU = same product
+  const sku = (product.product_id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return sku || null;
+}
+
+function readCache(key) {
+  if (!key) return null;
+  const file = path.join(CACHE_DIR, `${key}.json`);
+  if (!fs.existsSync(file)) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    console.log(`Cache HIT for ${key}`);
+    return data;
+  } catch (e) { return null; }
+}
+
+function writeCache(key, data) {
+  if (!key) return;
+  try {
+    fs.writeFileSync(path.join(CACHE_DIR, `${key}.json`), JSON.stringify(data, null, 2));
+    console.log(`Cache WRITE for ${key}`);
+  } catch (e) { console.warn('Cache write failed:', e.message); }
+}
+
+// 1e: Extract data for a single product (PDF + image + GPT-4o) — with cache
 app.post('/api/ingest/bulk/extract-data', async (req, res) => {
   try {
     const { product, template } = req.body;
     if (!product) {
       return res.status(400).json({ success: false, error: 'No product provided' });
+    }
+
+    // Check cache first
+    const cacheKey = getCacheKey(product);
+    const cached = readCache(cacheKey);
+    if (cached) {
+      cached._productId = product.product_id;
+      cached._imageUrl = (product.image_urls || [])[0] || null;
+      cached._fromCache = true;
+      return res.json({ success: true, data: cached });
     }
 
     const requiredAttrs = (template && template.required) || [];
@@ -1231,7 +1270,10 @@ An attribute can have multiple sources, e.g. ["pdf", "image"] if confirmed in bo
 
     const result = safeParseJSON(response.choices[0].message.content);
     result._productId = product.product_id;
-    result._imageUrl = product.image_urls ? product.image_urls[0] : null;
+    result._imageUrl = (product.image_urls || [])[0] || null;
+
+    // Save to cache for future re-runs
+    writeCache(cacheKey, result);
 
     res.json({ success: true, data: result });
   } catch (err) {
