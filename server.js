@@ -1761,57 +1761,69 @@ app.post('/api/export/enriched', (req, res) => {
       return res.status(400).json({ success: false, error: 'No products to export' });
     }
 
-    // Collect all unique attribute names across all products
-    const allAttrNames = new Set();
+    // Excluded system attributes
+    const EXCLUDED = new Set(['taxonomy level 1','taxonomy level 2','taxonomy level 3','taxonomy level 4','classpath','sub brand','feature bullets 4','feature bullets 5','feature bullets 6','feature bullets 7','feature bullets 8','feature bullets 9','feature bullets 10','object type name','parent leaf guid','sku id','omsid','file action']);
+
+    // ROW-BASED FORMAT: one row per attribute per SKU
+    const rows = [];
+
     products.forEach(p => {
-      Object.keys(p.attributes || {}).forEach(k => allAttrNames.add(k));
-    });
-    const attrList = Array.from(allAttrNames).sort();
+      const sku = p.product_id || p._productId || '';
+      const productName = p.product_name || '';
+      const category = p.category ? (p.category.category || '') : '';
+      const cls = p.category ? (p.category.class || '') : '';
 
-    // Build rows
-    const rows = products.map(p => {
-      const row = {
-        'SKU': p.product_id || p._productId || '',
-        'Product Name': p.product_name || '',
-        'Brand': p.brand || '',
-        'Category': p.category ? (p.category.category || '') : '',
-        'Class': p.category ? (p.category.class || '') : '',
-        'Description': p.description || '',
-      };
+      // Base product fields as attributes
+      const baseAttrs = [
+        { attr: 'Product Name', value: productName, conf: '100%', source: 'ingestion' },
+        { attr: 'Brand', value: p.brand || '', conf: '100%', source: 'ingestion' },
+        { attr: 'Category', value: category, conf: '95%', source: 'categorization' },
+        { attr: 'Class', value: cls, conf: '95%', source: 'categorization' },
+        { attr: 'Description', value: p.description || '', conf: '100%', source: 'ingestion' },
+      ];
 
-      // Add generated copy if available
+      // Generated copy fields
       if (p.generated_copy) {
-        row['Generated Title'] = p.generated_copy.product_title || '';
-        row['Generated Description'] = p.generated_copy.short_description || '';
-        row['Long Description'] = p.generated_copy.long_description || '';
-        if (p.generated_copy.bullet_points) {
-          p.generated_copy.bullet_points.forEach((b, i) => {
-            row[`Feature Bullet ${i + 1}`] = b;
+        const gc = p.generated_copy;
+        if (gc.product_title) baseAttrs.push({ attr: 'Product Title', value: gc.product_title, conf: '90%', source: 'copy_generation' });
+        if (gc.short_description) baseAttrs.push({ attr: 'Short Description', value: gc.short_description, conf: '90%', source: 'copy_generation' });
+        if (gc.long_description) baseAttrs.push({ attr: 'Long Description', value: gc.long_description, conf: '90%', source: 'copy_generation' });
+        if (gc.bullet_points) {
+          gc.bullet_points.forEach((b, i) => {
+            baseAttrs.push({ attr: `Feature Bullet ${i + 1}`, value: b, conf: '90%', source: 'copy_generation' });
           });
         }
-        row['SEO Keywords'] = (p.generated_copy.seo_keywords || []).join(', ');
+        if (gc.seo_keywords) baseAttrs.push({ attr: 'SEO Keywords', value: gc.seo_keywords.join(', '), conf: '85%', source: 'copy_generation' });
+        if (gc.target_audience) baseAttrs.push({ attr: 'Target Audience', value: gc.target_audience, conf: '85%', source: 'copy_generation' });
       }
 
-      // Add each attribute with value, confidence, source
-      attrList.forEach(attrName => {
-        const attr = (p.attributes || {})[attrName];
-        if (attr) {
-          const val = typeof attr === 'object' ? attr : { value: attr };
-          row[attrName] = val.value || '';
-          row[`${attrName} — Confidence`] = val.confidence !== undefined ? Math.round((val.confidence > 1 ? val.confidence : val.confidence * 100)) + '%' : '';
-          const src = val.sources ? (Array.isArray(val.sources) ? val.sources.join(', ') : val.sources) : (val.source || '');
-          row[`${attrName} — Source`] = src;
-        } else {
-          row[attrName] = '';
-          row[`${attrName} — Confidence`] = '';
-          row[`${attrName} — Source`] = '';
-        }
+      // Push base attributes
+      baseAttrs.forEach(a => {
+        if (a.value) rows.push({ SKU: sku, Attribute: a.attr, Value: a.value, Confidence: a.conf, Source: a.source });
       });
 
-      return row;
+      // Push extracted/enriched attributes
+      Object.entries(p.attributes || {}).forEach(([key, attr]) => {
+        if (EXCLUDED.has(key.toLowerCase())) return;
+        const val = typeof attr === 'object' ? attr : { value: attr };
+        if (!val.value || val.value === 'null' || val.value === 'N/A') return;
+        const conf = val.confidence !== undefined ? Math.round((val.confidence > 1 ? val.confidence : val.confidence * 100)) + '%' : '';
+        const src = val.sources ? (Array.isArray(val.sources) ? val.sources.join(', ') : val.sources) : (val.source || '');
+        rows.push({ SKU: sku, Attribute: key, Value: val.value, Confidence: conf, Source: src });
+      });
     });
 
     const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Auto-size columns
+    ws['!cols'] = [
+      { wch: 18 }, // SKU
+      { wch: 25 }, // Attribute
+      { wch: 80 }, // Value
+      { wch: 12 }, // Confidence
+      { wch: 20 }, // Source
+    ];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Enriched Products');
 

@@ -2169,7 +2169,30 @@ async function exportEnrichedData() {
     return;
   }
 
-  showLoading('Exporting', 'Building Excel file with all enriched data...');
+  // Check if any products are missing enrichment or copy
+  const needsEnrich = products.filter(p => {
+    const attrs = p.attributes || {};
+    const filled = Object.values(attrs).filter(v => {
+      const val = typeof v === 'object' ? v.value : v;
+      return val && val !== 'null' && val !== 'N/A';
+    }).length;
+    return filled < 5;
+  });
+  const needsCopy = products.filter(p => !p.generated_copy);
+
+  if (needsEnrich.length > 0 || needsCopy.length > 0) {
+    const msg = `Before exporting:\n\n` +
+      (needsEnrich.length > 0 ? `• ${needsEnrich.length} product(s) need enrichment\n` : '') +
+      (needsCopy.length > 0 ? `• ${needsCopy.length} product(s) need product copy generation\n` : '') +
+      `\nRun enrichment & copy generation for all products now?\n\n(Click OK to run, Cancel to export as-is)`;
+
+    if (confirm(msg)) {
+      await runBulkEnrichAndCopy(products);
+    }
+  }
+
+  // Now export
+  showLoading('Exporting', 'Building row-based Excel with all enriched data + generated copy...');
 
   try {
     const res = await fetch('/api/export/enriched', {
@@ -2201,6 +2224,83 @@ async function exportEnrichedData() {
   } catch (err) {
     hideLoading();
     alert('Export error: ' + err.message);
+  }
+}
+
+// Run enrichment + copy generation for all products in batch
+async function runBulkEnrichAndCopy(products) {
+  const total = products.length;
+
+  for (let i = 0; i < total; i++) {
+    const p = products[i];
+    showLoading(`Processing ${i + 1}/${total}`, `Enriching: ${p.product_name}...`);
+
+    // Step 1: Catalog lookup
+    try {
+      const catRes = await fetch(`/api/catalog/lookup?sku=${encodeURIComponent(p._productId || p.product_id || '')}&name=${encodeURIComponent(p.product_name || '')}`);
+      const catJson = await catRes.json();
+      if (catJson.success && catJson.data) {
+        const cat = catJson.data;
+        if (!p.attributes) p.attributes = {};
+        const catalogMap = {
+          'Brand': cat.brand, 'Price (USD)': cat.price, 'UPC': cat.upc,
+          'Flow Rate': cat.flowRate, 'Material': cat.material,
+          'Connection Size': cat.connectionSize, 'Operating Pressure': cat.operatingPressure,
+          'Warranty': cat.warranty, 'Weight (lbs)': cat.weight,
+          'Country of Origin': cat.countryOfOrigin
+        };
+        cat.bullets.forEach((b, j) => { catalogMap[`Bullet Point ${j+1}`] = b; });
+        Object.entries(catalogMap).forEach(([key, val]) => {
+          if (!val) return;
+          const existing = p.attributes[key];
+          const existingVal = existing ? (typeof existing === 'object' ? existing.value : existing) : '';
+          if (!existingVal || existingVal === 'null' || existingVal === 'N/A') {
+            p.attributes[key] = { value: String(val), confidence: 0.95, source: 'prefilled_catalog' };
+          }
+        });
+      }
+    } catch (e) {}
+
+    // Step 2: LLM enrichment
+    try {
+      const enrichRes = await fetch('/api/enrich/attributes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productData: cleanProductData(p),
+          category: p.category ? (p.category.category + ' > ' + (p.category.class || '')) : 'General',
+          classId: p.category ? p.category.classId : null
+        })
+      });
+      const enrichJson = await enrichRes.json();
+      if (enrichJson.success) {
+        const enrichedAttrs = enrichJson.data.enriched_attributes || enrichJson.data.attributes || {};
+        Object.entries(enrichedAttrs).forEach(([key, val]) => {
+          if (!val.value || val.value === 'null') return;
+          const existing = (p.attributes || {})[key];
+          const existingVal = existing ? (typeof existing === 'object' ? existing.value : existing) : '';
+          if (!existingVal || existingVal === 'null' || existingVal === 'N/A') {
+            p.attributes[key] = { value: val.value, confidence: val.confidence || 0.7, source: 'llm_inferred' };
+          }
+        });
+      }
+    } catch (e) {}
+
+    // Step 3: Copy generation (if missing)
+    if (!p.generated_copy) {
+      showLoading(`Processing ${i + 1}/${total}`, `Generating copy: ${p.product_name}...`);
+      try {
+        const copyRes = await fetch('/api/enrich/copy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productData: cleanProductData(p) })
+        });
+        const copyJson = await copyRes.json();
+        if (copyJson.success) {
+          p.generated_copy = copyJson.data;
+        }
+      } catch (e) {}
+    }
   }
 }
 
