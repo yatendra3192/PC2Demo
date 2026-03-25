@@ -1740,20 +1740,25 @@ function showExtractedProduct(idx) {
   // Build editable table rows
   let rows = '';
 
+  // Helper: check if value is effectively missing
+  function isMissingVal(v) { return !v || v === 'null' || v === 'N/A' || v === 'undefined' || v === 'None'; }
+  // Helper: clean display value (don't show "null" in inputs)
+  function cleanVal(v) { return isMissingVal(v) ? '' : v; }
+
   // Required attributes first
   allRequired.forEach(attrName => {
     const attrData = findAttr(attrs, attrName);
     const value = attrData ? (attrData.value || '') : '';
     const conf = attrData ? attrData.confidence : 0;
     const sources = attrData ? (attrData.sources || attrData.source || '') : '';
-    const isMissing = !value || value === 'null' || value === 'N/A';
+    const missing = isMissingVal(value);
     const userEdit = pipelineState.userEdits[`${idx}_${attrName}`];
 
-    rows += `<tr class="${isMissing && !userEdit ? 'missing-attr-row' : ''}">
+    rows += `<tr class="${missing && !userEdit ? 'missing-attr-row' : ''}">
       <td class="field-name">${attrName} <span class="required-badge">REQ</span></td>
-      <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || value)}" data-product="${idx}" data-attr="${attrName}" onchange="handleCellEdit(this)"></td>
-      <td>${sources ? multiSourceTags(sources) : (isMissing ? '<span style="color:var(--red);font-size:11px">missing</span>' : '')}</td>
-      <td>${conf ? confidenceBadge(conf) : (isMissing ? '<span style="color:var(--red);font-size:12px">0%</span>' : '')}</td>
+      <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || cleanVal(value))}" data-product="${idx}" data-attr="${attrName}" onchange="handleCellEdit(this)"></td>
+      <td>${!missing && sources ? multiSourceTags(sources) : (missing ? '<span style="color:var(--red);font-size:11px">missing</span>' : '')}</td>
+      <td>${!missing && conf ? confidenceBadge(conf) : (missing ? '' : '')}</td>
     </tr>`;
   });
 
@@ -1763,13 +1768,14 @@ function showExtractedProduct(idx) {
     const value = attrData ? (attrData.value || '') : '';
     const conf = attrData ? attrData.confidence : 0;
     const sources = attrData ? (attrData.sources || attrData.source || '') : '';
+    const missing = isMissingVal(value);
     const userEdit = pipelineState.userEdits[`${idx}_${attrName}`];
 
     rows += `<tr>
       <td class="field-name">${attrName} <span class="optional-badge">OPT</span></td>
-      <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || value)}" data-product="${idx}" data-attr="${attrName}" onchange="handleCellEdit(this)"></td>
-      <td>${sources ? multiSourceTags(sources) : ''}</td>
-      <td>${conf ? confidenceBadge(conf) : ''}</td>
+      <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || cleanVal(value))}" data-product="${idx}" data-attr="${attrName}" onchange="handleCellEdit(this)"></td>
+      <td>${!missing && sources ? multiSourceTags(sources) : ''}</td>
+      <td>${!missing && conf ? confidenceBadge(conf) : ''}</td>
     </tr>`;
   });
 
@@ -1782,13 +1788,14 @@ function showExtractedProduct(idx) {
       const value = typeof attrData === 'object' ? (attrData.value || '') : attrData;
       const conf = typeof attrData === 'object' ? attrData.confidence : 0.85;
       const sources = typeof attrData === 'object' ? (attrData.sources || attrData.source || '') : '';
+      const missing = isMissingVal(value);
       const userEdit = pipelineState.userEdits[`${idx}_${key}`];
 
       rows += `<tr>
         <td class="field-name">${key}</td>
-        <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || value)}" data-product="${idx}" data-attr="${key}" onchange="handleCellEdit(this)"></td>
-        <td>${sources ? multiSourceTags(sources) : ''}</td>
-        <td>${conf ? confidenceBadge(conf) : ''}</td>
+        <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || cleanVal(value))}" data-product="${idx}" data-attr="${key}" onchange="handleCellEdit(this)"></td>
+        <td>${!missing && sources ? multiSourceTags(sources) : ''}</td>
+        <td>${!missing && conf ? confidenceBadge(conf) : ''}</td>
       </tr>`;
     }
   });
