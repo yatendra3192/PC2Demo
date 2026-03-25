@@ -75,7 +75,8 @@ function computeACR(product, template) {
 
   attrKeys.forEach(key => {
     const val = typeof attrs[key] === 'object' ? attrs[key].value : attrs[key];
-    if (val && val !== 'null' && val !== 'N/A' && val !== '') {
+    const _lv = val ? String(val).trim().toLowerCase() : '';
+    if (val && !['null','n/a','na','undefined','none','','—','-'].includes(_lv)) {
       filled++;
     } else {
       missingNames.push(key);
@@ -810,7 +811,7 @@ function populateEnrichmentTable() {
   const tpl = (bulkIdx !== undefined && pipelineState.templates[bulkIdx]) ? pipelineState.templates[bulkIdx].template : null;
   const acrData = computeACR(currentProduct, tpl);
 
-  function isMissingVal(v) { return !v || v === 'null' || v === 'N/A' || v === 'undefined' || v === 'None'; }
+  function isMissingVal(v) { if (!v) return true; const lv = String(v).trim().toLowerCase(); return ['null','n/a','na','undefined','none','','—','-'].includes(lv); }
 
   // Render filled attributes first (skip excluded system fields)
   attrKeys.filter(k => !isExcludedAttr(k)).forEach(key => {
@@ -964,7 +965,7 @@ async function runEnrichment() {
     const llmAttrs = enriched.enriched_attributes || enriched.attributes || {};
     let llmFilled = 0;
     Object.entries(llmAttrs).forEach(([key, val]) => {
-      if (!val.value || val.value === 'null' || val.value === 'N/A') return;
+      if (!val.value || ['null','n/a','na','undefined','none'].includes(String(val.value).trim().toLowerCase())) return;
       const existing = currentProduct.attributes[key];
       const existingVal = existing ? (typeof existing === 'object' ? existing.value : existing) : '';
       if (!existingVal || existingVal === 'null' || existingVal === 'N/A') {
@@ -984,7 +985,7 @@ async function runEnrichment() {
     tbody.innerHTML = '';
     const totalFilled = catalogFilled + pdpFilled + llmFilled;
 
-    function isMissingVal(v) { return !v || v === 'null' || v === 'N/A' || v === 'undefined'; }
+    function isMissingVal(v) { if (!v) return true; const lv = String(v).trim().toLowerCase(); return ['null','n/a','na','undefined','none','','—','-'].includes(lv); }
 
     const allAttrs = currentProduct.attributes || {};
     Object.entries(allAttrs).filter(([key]) => !isExcludedAttr(key)).forEach(([key, val]) => {
@@ -1855,7 +1856,7 @@ function showExtractedProduct(idx) {
   let rows = '';
 
   // Helper: check if value is effectively missing
-  function isMissingVal(v) { return !v || v === 'null' || v === 'N/A' || v === 'undefined' || v === 'None'; }
+  function isMissingVal(v) { if (!v) return true; const lv = String(v).trim().toLowerCase(); return ['null','n/a','na','undefined','none','','—','-'].includes(lv); }
   // Helper: clean display value (don't show "null" in inputs)
   function cleanVal(v) { return isMissingVal(v) ? '' : v; }
 
