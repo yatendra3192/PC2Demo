@@ -945,6 +945,17 @@
   </main>
 </div>
 
+<!-- ── DQ ISSUE DETAIL MODAL ──────────────────── -->
+<div class="modal-overlay" id="dq-issue-modal" onclick="if(event.target===this)closeDQModal()">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span id="dq-modal-title">Missing Attributes</span>
+      <button class="modal-close" onclick="closeDQModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="dq-modal-body"></div>
+  </div>
+</div>
+
 <!-- ── LOADING OVERLAY ─────────────────────────── -->
 <div class="loading-overlay" id="loading">
   <div class="loading-card">

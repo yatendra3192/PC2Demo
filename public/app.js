@@ -1098,6 +1098,47 @@ function sendToAthena() {
 }
 
 // ── ATHENA DASHBOARD ──────────────────────────────────────
+// ── DQ ISSUE DETAIL MODAL ─────────────────────────────────
+function showDQIssueModal(idx) {
+  const iss = (window._dqIssuesList || [])[idx];
+  if (!iss) return;
+
+  const modal = document.getElementById('dq-issue-modal');
+  const title = document.getElementById('dq-modal-title');
+  const body = document.getElementById('dq-modal-body');
+
+  title.textContent = `${iss.product} — ${iss.count} Missing Attributes`;
+
+  let html = `<div style="display:flex;gap:16px;margin-bottom:16px">
+    <div class="stat-card red" style="flex:1;padding:14px">
+      <div class="stat-label">Missing</div>
+      <div class="stat-value" style="font-size:22px">${iss.count}</div>
+    </div>
+    <div class="stat-card green" style="flex:1;padding:14px">
+      <div class="stat-label">Filled</div>
+      <div class="stat-value" style="font-size:22px">${iss.filled}</div>
+    </div>
+    <div class="stat-card blue" style="flex:1;padding:14px">
+      <div class="stat-label">ACR</div>
+      <div class="stat-value" style="font-size:22px">${iss.acr}%</div>
+    </div>
+  </div>`;
+
+  html += '<div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Missing Attributes</div>';
+  html += '<div style="margin-bottom:16px">';
+  (iss.allMissing || []).forEach(attr => {
+    html += `<span class="missing-attr-chip">${escapeForHtml(attr)}</span>`;
+  });
+  html += '</div>';
+
+  body.innerHTML = html;
+  modal.classList.add('visible');
+}
+
+function closeDQModal() {
+  document.getElementById('dq-issue-modal').classList.remove('visible');
+}
+
 function initDashboard() {
   // Show real data from processed products
   refreshDashboard();
@@ -1139,7 +1180,11 @@ function refreshDashboard() {
       issuesList.push({
         product: name,
         issue: `Missing ${acrData.missingNames.slice(0, 3).join(', ')}${acrData.missingNames.length > 3 ? ` (+${acrData.missingNames.length - 3} more)` : ''}`,
-        count: acrData.missing
+        count: acrData.missing,
+        allMissing: acrData.missingNames,
+        filled: acrData.filled,
+        total: acrData.total,
+        acr: acrData.acr
       });
     }
   });
@@ -1171,12 +1216,16 @@ function refreshDashboard() {
 
   // Top DQ Issues
   const issuesBody = document.getElementById('dash-issues-body');
+  // Store issues globally for modal access
+  window._dqIssuesList = [];
   issuesBody.innerHTML = '';
   if (issuesList.length === 0) {
     issuesBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--green)">No missing attributes found</td></tr>';
   } else {
-    issuesList.sort((a, b) => b.count - a.count).forEach(iss => {
-      issuesBody.innerHTML += `<tr>
+    issuesList.sort((a, b) => b.count - a.count);
+    window._dqIssuesList = issuesList;
+    issuesList.forEach((iss, idx) => {
+      issuesBody.innerHTML += `<tr class="bulk-row" onclick="showDQIssueModal(${idx})" title="Click to view all missing attributes">
         <td class="field-name">${escapeForHtml(iss.product)}</td>
         <td style="font-size:12px;color:var(--gray-600)">${escapeForHtml(iss.issue)}</td>
         <td><span class="confidence ${iss.count > 3 ? 'low' : iss.count > 1 ? 'medium' : 'high'}">${iss.count} missing</span></td>
