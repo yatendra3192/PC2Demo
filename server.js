@@ -1710,6 +1710,65 @@ app.get('/api/kb/context/:classId', (req, res) => {
   }
 });
 
+// ── CATALOG DATA LOOKUP ──────────────────────────────────
+let catalogCache = null;
+
+function loadCatalog() {
+  if (catalogCache) return catalogCache;
+  const XLSX = require('xlsx');
+  const filePath = path.join(__dirname, 'kb', 'catalog_data.xlsx');
+  if (!fs.existsSync(filePath)) return null;
+  const wb = XLSX.readFile(filePath);
+  const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+  catalogCache = data.map(r => ({
+    sku: r['SKU / Model'] || '',
+    title: r['Product Title'] || '',
+    category: r['Category'] || '',
+    brand: r['Brand'] || '',
+    price: r['Price (USD)'] || '',
+    upc: r['UPC / Store SKU'] || '',
+    description: r['Description'] || '',
+    bullets: [r['Bullet Point 1'], r['Bullet Point 2'], r['Bullet Point 3'], r['Bullet Point 4'], r['Bullet Point 5']].filter(Boolean),
+    flowRate: r['Flow Rate'] || '',
+    material: r['Material'] || '',
+    connectionSize: r['Connection Size'] || '',
+    operatingPressure: r['Operating Pressure'] || '',
+    warranty: r['Warranty'] || '',
+    weight: r['Weight (lbs)'] || '',
+    countryOfOrigin: r['Country of Origin'] || '',
+    imageUrl: r['Image URL'] || '',
+    pdfUrl: r['PDF Spec Sheet URL'] || ''
+  }));
+  console.log(`Catalog loaded: ${catalogCache.length} products`);
+  return catalogCache;
+}
+
+try { loadCatalog(); } catch(e) { console.log('Catalog load deferred:', e.message); }
+
+app.get('/api/catalog/lookup', (req, res) => {
+  try {
+    const catalog = loadCatalog();
+    if (!catalog) return res.json({ success: true, data: null });
+    const sku = (req.query.sku || '').toLowerCase();
+    const name = (req.query.name || '').toLowerCase();
+
+    let match = null;
+    if (sku) match = catalog.find(c => c.sku.toLowerCase() === sku);
+    if (!match && name) {
+      // Fuzzy: find best match by title overlap
+      match = catalog.find(c => c.title.toLowerCase().includes(name) || name.includes(c.title.toLowerCase().substring(0, 20)));
+      if (!match) match = catalog.find(c => {
+        const words = name.split(/\s+/).filter(w => w.length > 3);
+        return words.filter(w => c.title.toLowerCase().includes(w)).length >= 2;
+      });
+    }
+
+    res.json({ success: true, data: match || null });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`\n  ╔══════════════════════════════════════════════╗`);
   console.log(`  ║   PC2 v2.0 — Product Content Creator        ║`);

@@ -108,6 +108,9 @@ function sourceTag(source, sourceDetail) {
     'industry_standard': ['inference', 'Industry Standard'],
     'distributor_catalog': ['web', 'Distributor Catalog'],
     'distributor_site': ['web', 'Distributor'],
+    'prefilled_catalog': ['catalog', 'Prefilled Catalog'],
+    'llm_inferred': ['llm-guess', 'LLM Inferred'],
+    'pdp_page': ['pdp', 'PDP Page'],
     'product_database': ['web', 'Product DB'],
     'category_inference': ['inference', 'Category Inference'],
     'product_data': ['kb', 'Product Data'],
@@ -787,86 +790,143 @@ function populateEnrichmentTable() {
   tbody.innerHTML = '';
 
   const attrs = { ...(currentProduct.attributes || {}), ...(currentProduct.specifications || {}) };
+  const attrKeys = Object.keys(attrs);
 
   // Get template for this product
   const bulkIdx = currentProduct._bulkIndex;
   const tpl = (bulkIdx !== undefined && pipelineState.templates[bulkIdx]) ? pipelineState.templates[bulkIdx].template : null;
   const acrData = computeACR(currentProduct, tpl);
 
-  const attrKeys = Object.keys(attrs);
+  function isMissingVal(v) { return !v || v === 'null' || v === 'N/A' || v === 'undefined' || v === 'None'; }
+
+  // Render filled attributes first
   attrKeys.forEach(key => {
     const val = typeof attrs[key] === 'object' ? attrs[key] : { value: attrs[key], confidence: 0.9 };
-    if (!val.value || val.value === '' || val.value === 'N/A') return;
+    if (isMissingVal(val.value)) return;
+    const isMandatory = tpl && (tpl.required || []).some(r => r.toLowerCase() === key.toLowerCase());
+    const badge = isMandatory ? '<span class="required-badge" style="margin-left:4px">REQ</span>' : '';
     tbody.innerHTML += `<tr>
-      <td class="field-name">${key}</td>
+      <td class="field-name">${key}${badge}</td>
       <td>${val.value}</td>
       <td>${sourceTag(val.source || 'product_data', val.source_detail)}</td>
       <td>${confidenceBadge(val.confidence || 0.9)}</td>
     </tr>`;
   });
 
+  // Now show ALL missing template attributes (mandatory first, then optional)
+  if (tpl) {
+    const allTemplate = [
+      ...((tpl.required || []).map(a => ({ name: a, mandatory: true }))),
+      ...((tpl.optional || []).map(a => ({ name: a, mandatory: false })))
+    ];
+    allTemplate.forEach(attr => {
+      const found = attrKeys.find(k => k.toLowerCase() === attr.name.toLowerCase());
+      if (found) {
+        const val = typeof attrs[found] === 'object' ? attrs[found] : { value: attrs[found] };
+        if (!isMissingVal(val.value)) return; // Already rendered above
+      }
+      // This is a missing attribute — show empty row
+      const badge = attr.mandatory
+        ? '<span class="required-badge" style="margin-left:4px">REQ</span>'
+        : '<span class="optional-badge" style="margin-left:4px">OPT</span>';
+      tbody.innerHTML += `<tr class="missing-attr-row">
+        <td class="field-name">${attr.name}${badge}</td>
+        <td style="color:var(--gray-400);font-style:italic">— empty —</td>
+        <td><span style="color:var(--red);font-size:11px">missing</span></td>
+        <td></td>
+      </tr>`;
+    });
+  }
+
   document.getElementById('acr-before-val').textContent = acrData.acr + '%';
-  document.getElementById('acr-before-detail').textContent = `${acrData.filled} of ${acrData.total} attributes filled`;
+  document.getElementById('acr-before-detail').textContent = `${acrData.filled} of ${acrData.total} attributes filled (${acrData.missing} missing)`;
 
   const circle = document.getElementById('acr-before-circle');
   circle.className = 'acr-circle ' + (acrData.acr < 50 ? 'low' : acrData.acr < 75 ? 'medium' : 'high');
 }
 
-// ── 4a: RUN ENRICHMENT (PDP gap-fill first, then standard) ─
+// ── 4a: RUN ENRICHMENT (Catalog → PDP → LLM, with source tags) ─
 async function runEnrichment() {
   if (!currentProduct) return;
 
+  const bulkIdx = currentProduct._bulkIndex;
+  const tpl = (bulkIdx !== undefined && pipelineState.templates[bulkIdx]) ? pipelineState.templates[bulkIdx].template : null;
+  const acrBeforeData = computeACR(currentProduct, tpl);
+
+  // ── Step 1: Look up Prefilled Catalog data ──
+  showLoading('Enrichment Step 1/3', 'Looking up product in Prefilled Catalog...');
+  let catalogFilled = 0;
+  try {
+    const sku = currentProduct._productId || currentProduct.product_id || '';
+    const name = currentProduct.product_name || '';
+    const catRes = await fetch(`/api/catalog/lookup?sku=${encodeURIComponent(sku)}&name=${encodeURIComponent(name)}`);
+    const catJson = await catRes.json();
+
+    if (catJson.success && catJson.data) {
+      const cat = catJson.data;
+      if (!currentProduct.attributes) currentProduct.attributes = {};
+      // Map catalog fields to attributes
+      const catalogMap = {
+        'Brand': cat.brand, 'Price (USD)': cat.price, 'UPC': cat.upc,
+        'Flow Rate': cat.flowRate, 'Material': cat.material,
+        'Connection Size': cat.connectionSize, 'Operating Pressure': cat.operatingPressure,
+        'Warranty': cat.warranty, 'Weight (lbs)': cat.weight,
+        'Country of Origin': cat.countryOfOrigin, 'Category': cat.category,
+        'Description': cat.description
+      };
+      cat.bullets.forEach((b, i) => { catalogMap[`Bullet Point ${i+1}`] = b; });
+
+      Object.entries(catalogMap).forEach(([key, val]) => {
+        if (!val) return;
+        const existing = currentProduct.attributes[key];
+        const existingVal = existing ? (typeof existing === 'object' ? existing.value : existing) : '';
+        if (!existingVal || existingVal === 'null' || existingVal === 'N/A') {
+          currentProduct.attributes[key] = { value: String(val), confidence: 0.95, source: 'prefilled_catalog', was_missing: true };
+          catalogFilled++;
+        }
+      });
+    }
+  } catch (e) { console.log('Catalog lookup failed:', e.message); }
+
+  // ── Step 2: PDP gap-fill for remaining missing ──
   const hasPdp = currentProduct.pdp_url;
   const hasPdf = currentProduct.pdf_urls && currentProduct.pdf_urls.length > 0;
+  let pdpFilled = 0;
 
-  // Try gap-fill with PDP/PDF first if available
   if (hasPdp || hasPdf) {
-    showLoading('Gap Filling', hasPdp ? 'Fetching PDP page for missing attributes...' : 'Re-analyzing PDF for missing attributes...');
-
+    showLoading('Enrichment Step 2/3', hasPdp ? 'Fetching PDP page for remaining gaps...' : 'Re-analyzing PDF...');
     try {
-      // Figure out which attributes are missing
-      const attrs = { ...currentProduct.attributes, ...currentProduct.specifications };
-      const allKeys = Object.keys(attrs);
-      const missingAttrs = allKeys.filter(k => {
-        const v = typeof attrs[k] === 'object' ? attrs[k].value : attrs[k];
-        return !v || v === 'null' || v === 'N/A';
-      });
-
-      if (missingAttrs.length > 0) {
+      const acrNow = computeACR(currentProduct, tpl);
+      if (acrNow.missing > 0) {
         const gapRes = await fetch('/api/enrich/gap-fill', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             product: cleanProductData(currentProduct),
-            missingAttributes: missingAttrs,
+            missingAttributes: acrNow.missingNames,
             pdpUrl: currentProduct.pdp_url || '',
             pdfUrls: currentProduct.pdf_urls || [],
             imageUrls: currentProduct.image_urls || []
           })
         });
         const gapJson = await gapRes.json();
-
         if (gapJson.success && gapJson.data.filled) {
-          // Merge gap-filled attributes into currentProduct
           Object.entries(gapJson.data.filled).forEach(([key, val]) => {
             if (val.value && val.value !== 'null') {
-              if (!currentProduct.attributes) currentProduct.attributes = {};
               currentProduct.attributes[key] = {
-                value: val.value,
-                confidence: val.confidence || 0.8,
-                source: val.source || 'gap_fill',
-                was_missing: true
+                value: val.value, confidence: val.confidence || 0.8,
+                source: 'pdp_page', was_missing: true
               };
+              pdpFilled++;
             }
           });
         }
       }
-    } catch (gapErr) {
-      console.log('Gap-fill step failed, continuing with standard enrichment:', gapErr.message);
-    }
+    } catch (e) { console.log('PDP gap-fill failed:', e.message); }
   }
 
-  showLoading('Running Enrichment', 'Filling remaining gaps from Knowledge Base and category inference...');
+  // ── Step 3: LLM enrichment for any remaining gaps ──
+  showLoading('Enrichment Step 3/3', 'LLM filling remaining gaps from Knowledge Base...');
 
   try {
     const res = await fetch('/api/enrich/attributes', {
@@ -886,42 +946,67 @@ async function runEnrichment() {
     if (!json.success) throw new Error(json.error);
 
     const enriched = json.data;
+
+    // Merge LLM enriched attributes (tag as llm_inferred for newly filled ones)
+    const llmAttrs = enriched.enriched_attributes || enriched.attributes || {};
+    let llmFilled = 0;
+    Object.entries(llmAttrs).forEach(([key, val]) => {
+      if (!val.value || val.value === 'null' || val.value === 'N/A') return;
+      const existing = currentProduct.attributes[key];
+      const existingVal = existing ? (typeof existing === 'object' ? existing.value : existing) : '';
+      if (!existingVal || existingVal === 'null' || existingVal === 'N/A') {
+        currentProduct.attributes[key] = {
+          value: val.value, confidence: val.confidence || 0.7,
+          source: 'llm_inferred', source_detail: val.source_detail,
+          was_missing: true
+        };
+        llmFilled++;
+      }
+    });
+
+    currentProduct.specifications = {};
+
+    // Now render the full enriched table
     const tbody = document.getElementById('enrich-attrs-body');
     tbody.innerHTML = '';
+    const totalFilled = catalogFilled + pdpFilled + llmFilled;
 
-    let gapsFilled = 0;
-    let total = 0;
+    function isMissingVal(v) { return !v || v === 'null' || v === 'N/A' || v === 'undefined'; }
 
-    Object.entries(enriched.enriched_attributes || enriched.attributes || {}).forEach(([key, val]) => {
-      // Skip attributes with no value or 0% confidence
-      if (!val.value || val.value === '' || val.value === 'N/A' || val.value === 'null') return;
-      if (val.confidence !== undefined && val.confidence <= 0) return;
-
-      total++;
-      const wasMissing = val.was_missing;
-      if (wasMissing) gapsFilled++;
-
-      tbody.innerHTML += `<tr class="${wasMissing ? 'filled-cell' : ''}">
-        <td class="field-name">${key} ${wasMissing ? '<span style="color:var(--green);font-size:11px">&#x2705; FILLED</span>' : ''}</td>
-        <td>${val.value}</td>
-        <td>${sourceTag(val.source, val.source_detail)}</td>
-        <td>${confidenceBadge(val.confidence)}</td>
+    const allAttrs = currentProduct.attributes || {};
+    Object.entries(allAttrs).forEach(([key, val]) => {
+      const v = typeof val === 'object' ? val : { value: val, confidence: 0.9, source: 'product_data' };
+      if (isMissingVal(v.value)) return;
+      const wasFilled = v.was_missing;
+      tbody.innerHTML += `<tr class="${wasFilled ? 'filled-cell' : ''}">
+        <td class="field-name">${key} ${wasFilled ? '<span style="color:var(--green);font-size:11px">&#x2705; FILLED</span>' : ''}</td>
+        <td>${v.value}</td>
+        <td>${sourceTag(v.source || 'product_data', v.source_detail)}</td>
+        <td>${confidenceBadge(v.confidence || 0.9)}</td>
       </tr>`;
     });
 
-    // Compute real ACR after enrichment (don't trust LLM hallucinated values)
-    const bulkIdx = currentProduct._bulkIndex;
-    const tpl = (bulkIdx !== undefined && pipelineState.templates[bulkIdx]) ? pipelineState.templates[bulkIdx].template : null;
-    const acrBeforeData = computeACR(currentProduct, tpl);
-    // Write enriched attributes back to currentProduct so DQ/dashboard see them
-    currentProduct.attributes = enriched.enriched_attributes || enriched.attributes || {};
-    currentProduct.specifications = {};
+    // Show remaining missing template attributes
+    if (tpl) {
+      const allTemplate = [...(tpl.required || []), ...(tpl.optional || [])];
+      allTemplate.forEach(attr => {
+        const found = Object.keys(allAttrs).find(k => k.toLowerCase() === attr.toLowerCase());
+        if (found && !isMissingVal(typeof allAttrs[found] === 'object' ? allAttrs[found].value : allAttrs[found])) return;
+        tbody.innerHTML += `<tr class="missing-attr-row">
+          <td class="field-name">${attr} <span style="color:var(--red);font-size:10px">STILL MISSING</span></td>
+          <td style="color:var(--gray-400);font-style:italic">— empty —</td>
+          <td></td><td></td>
+        </tr>`;
+      });
+    }
+
     const acrAfterData = computeACR(currentProduct, tpl);
 
     document.getElementById('acr-before-val').textContent = acrBeforeData.acr + '%';
     document.getElementById('acr-after-card').style.display = 'block';
     document.getElementById('acr-after-val').textContent = acrAfterData.acr + '%';
-    document.getElementById('acr-improvement').innerHTML = `&#x2B06; +${acrAfterData.acr - acrBeforeData.acr}% &mdash; ${gapsFilled} gaps filled`;
+    document.getElementById('acr-improvement').innerHTML =
+      `&#x2B06; +${acrAfterData.acr - acrBeforeData.acr}% &mdash; ${totalFilled} gaps filled (${catalogFilled} catalog, ${pdpFilled} PDP, ${llmFilled} LLM)`;
 
     // Show sources consulted
     if (enriched.sources_consulted && enriched.sources_consulted.length) {

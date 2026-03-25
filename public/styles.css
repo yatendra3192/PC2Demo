@@ -574,6 +574,9 @@ body {
 .source-tag.web { background: rgba(142, 68, 173, 0.1); color: var(--purple); }
 .source-tag.inference { background: rgba(243, 156, 18, 0.1); color: var(--orange); }
 .source-tag.image { background: rgba(39, 174, 96, 0.1); color: var(--green); }
+.source-tag.catalog { background: rgba(39, 174, 96, 0.1); color: var(--green); }
+.source-tag.pdp { background: rgba(41, 128, 185, 0.1); color: var(--blue); }
+.source-tag.llm-guess { background: rgba(230, 126, 34, 0.1); color: #D35400; border: 1px dashed rgba(230, 126, 34, 0.3); }
 
 /* ── MULTI-IMAGE CARDS ─────────────────────────── */
 .image-result-card {
