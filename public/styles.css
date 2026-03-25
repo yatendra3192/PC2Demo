@@ -576,7 +576,7 @@ body {
 .source-tag.image { background: rgba(39, 174, 96, 0.1); color: var(--green); }
 .source-tag.catalog { background: rgba(39, 174, 96, 0.1); color: var(--green); }
 .source-tag.pdp { background: rgba(41, 128, 185, 0.1); color: var(--blue); }
-.source-tag.llm-guess { background: rgba(230, 126, 34, 0.1); color: #D35400; border: 1px dashed rgba(230, 126, 34, 0.3); }
+.source-tag.catalog-inferred { background: rgba(230, 126, 34, 0.1); color: #D35400; }
 
 /* ── MULTI-IMAGE CARDS ─────────────────────────── */
 .image-result-card {

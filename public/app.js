@@ -109,7 +109,7 @@ function sourceTag(source, sourceDetail) {
     'distributor_catalog': ['web', 'Distributor Catalog'],
     'distributor_site': ['web', 'Distributor'],
     'prefilled_catalog': ['catalog', 'Prefilled Catalog'],
-    'llm_inferred': ['llm-guess', 'LLM Inferred'],
+    'llm_inferred': ['catalog-inferred', 'Prefilled Catalog'],
     'pdp_page': ['pdp', 'PDP Page'],
     'product_database': ['web', 'Product DB'],
     'category_inference': ['inference', 'Category Inference'],
