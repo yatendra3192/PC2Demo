@@ -639,6 +639,34 @@ Return JSON:
     });
 
     const result = safeParseJSON(response.choices[0].message.content);
+
+    // Select first image of each priority type: Hero, Feature Callout, Dimension Diagram
+    const TARGET_TYPES = ['Hero', 'Feature Callout', 'Dimension Diagram'];
+    const selected = [];
+    const images = result.images || [];
+    TARGET_TYPES.forEach(targetType => {
+      const match = images.find(img =>
+        (img.image_type || '').toLowerCase() === targetType.toLowerCase() &&
+        !selected.some(s => s.index === img.index)
+      );
+      if (match) {
+        selected.push({ ...match, url: imageUrls[match.index !== undefined ? match.index : 0] || '' });
+      }
+    });
+    // If we don't have 3, fill with remaining best-confidence unselected images
+    if (selected.length < 3) {
+      const remaining = images
+        .filter(img => !selected.some(s => s.index === img.index))
+        .sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+      while (selected.length < 3 && remaining.length > 0) {
+        const next = remaining.shift();
+        selected.push({ ...next, url: imageUrls[next.index !== undefined ? next.index : 0] || '' });
+      }
+    }
+
+    result.selected = selected;
+    result.total_images = imageUrls.length;
+
     res.json({ success: true, data: result });
   } catch (err) {
     console.error('Image tag error:', err);

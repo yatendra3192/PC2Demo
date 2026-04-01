@@ -1855,8 +1855,36 @@ async function runDataExtraction() {
   for (let j = 0; j < total; j++) {
     if (pipelineState.extractedData[j] && pipelineState.extractedData[j]._fromCache) cachedCount++;
   }
+
+  // Run image tagging for products with multiple images (parallel, 3 at a time)
+  const imgTagProducts = bulkProducts.filter(p => p.image_urls && p.image_urls.length > 0);
+  if (imgTagProducts.length > 0) {
+    btn.innerHTML = '&#x23F3; Tagging images...';
+    const IMG_BATCH = 3;
+    for (let b = 0; b < imgTagProducts.length; b += IMG_BATCH) {
+      const batch = imgTagProducts.slice(b, b + IMG_BATCH);
+      await Promise.all(batch.map(async (p) => {
+        const idx = bulkProducts.indexOf(p);
+        try {
+          const tagRes = await fetch('/api/enrich/image-tag', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageUrls: p.image_urls, productName: p.product_name })
+          });
+          const tagJson = await tagRes.json();
+          if (tagJson.success && tagJson.data.selected) {
+            if (!pipelineState.extractedData[idx]) pipelineState.extractedData[idx] = {};
+            pipelineState.extractedData[idx]._selectedImages = tagJson.data.selected;
+            pipelineState.extractedData[idx]._allImageTags = tagJson.data.images || [];
+            pipelineState.extractedData[idx]._totalImages = tagJson.data.total_images || p.image_urls.length;
+          }
+        } catch (e) { console.log('Image tag failed for', p.product_id, e.message); }
+      }));
+    }
+  }
+
   btn.innerHTML = cachedCount > 0
-    ? `&#x2705; Extracted (${cachedCount} from cache, ${total - cachedCount} fresh)`
+    ? `&#x2705; Extracted (${cachedCount} cached, ${total - cachedCount} fresh)`
     : '&#x2705; Extracted';
   document.getElementById('wiz-next-3').disabled = false;
 
@@ -1880,6 +1908,34 @@ function showExtractedProduct(idx) {
   if (data.error) {
     container.innerHTML = `<div class="flow-indicator warning">&#x26A0; Extraction error: ${data.error}</div>`;
     return;
+  }
+
+  // Show selected images (3 per product: Hero, Feature Callout, Dimension Diagram)
+  const selImgsSection = document.getElementById('wiz-selected-images');
+  const selImgsGrid = document.getElementById('wiz-selected-images-grid');
+  const selectedImages = data._selectedImages || [];
+  if (selectedImages.length > 0) {
+    selImgsSection.style.display = 'block';
+    document.getElementById('wiz-total-images').textContent = data._totalImages || '?';
+    const tagClassMap = {
+      'hero': 'hero', 'feature callout': 'default', 'dimension diagram': 'diagram',
+      'lifestyle': 'lifestyle', 'close-up': 'close-up', 'in-use': 'in-use',
+      'packaging': 'packaging', 'room set': 'room-set'
+    };
+    selImgsGrid.innerHTML = '';
+    selectedImages.forEach(img => {
+      const cls = tagClassMap[(img.image_type || '').toLowerCase()] || 'default';
+      selImgsGrid.innerHTML += `<div class="img-tag-card">
+        <img src="${img.url}" onerror="this.style.display='none'">
+        <div class="img-tag-info">
+          <span class="img-tag-badge ${cls}">${img.image_type || 'Unknown'}</span>
+          ${img.confidence ? `<span style="font-size:10px;color:var(--gray-500);margin-left:4px">${Math.round(img.confidence * 100)}%</span>` : ''}
+          <div style="font-size:10px;color:var(--gray-500);margin-top:3px">${img.visual_notes || ''}</div>
+        </div>
+      </div>`;
+    });
+  } else {
+    selImgsSection.style.display = 'none';
   }
 
   const attrs = data.attributes || {};
@@ -2153,7 +2209,8 @@ function finishWizard() {
       _productId: bp.product_id,
       pdp_url: bp.pdp_url || '',
       pdf_urls: bp.pdf_urls || [],
-      image_urls: bp.image_urls || []
+      image_urls: extracted._selectedImages ? extracted._selectedImages.map(s => s.url) : (bp.image_urls || []),
+      _selectedImages: extracted._selectedImages || null
     });
   });
 

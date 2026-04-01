@@ -363,6 +363,11 @@
                     <div id="wiz-extract-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--red),var(--green));border-radius:3px;transition:width 0.4s ease"></div>
                   </div>
                 </div>
+                <!-- Selected images per product -->
+                <div id="wiz-selected-images" style="display:none;margin-bottom:16px">
+                  <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Selected Product Images (3 of <span id="wiz-total-images">0</span>)</div>
+                  <div id="wiz-selected-images-grid" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+                </div>
                 <!-- Editable table for current product -->
                 <div id="wiz-extract-table-container">
                   <div class="empty-state" style="padding:30px">
