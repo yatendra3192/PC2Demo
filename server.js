@@ -583,6 +583,69 @@ Return JSON:
   }
 });
 
+// 4b-tag: Image Type Classification + Visual Analysis (batch)
+app.post('/api/enrich/image-tag', async (req, res) => {
+  try {
+    const { imageUrls, productName } = req.body;
+    if (!imageUrls || imageUrls.length === 0) {
+      return res.status(400).json({ success: false, error: 'No image URLs provided' });
+    }
+
+    // Build vision content with all images
+    const userContent = [
+      { type: 'text', text: `Classify each product image by type and extract visual attributes.
+
+Product: ${productName || 'Unknown'}
+
+IMAGE TYPES (pick the best match for each image):
+Lifestyle, Hero, Side View, Close-up, Room Set, Feature Callout, Dimension Diagram, Overhead View, Color Swatch, Back View, Packaging, In-Use, Assembly Instruction, Certification, Component, Comparison, Scale Reference
+
+For each image, return:
+- image_type: one of the types above
+- confidence: 0.0-1.0
+- visual_notes: brief description of what's visible
+
+Also extract overall visual attributes from ALL images combined.
+
+Return JSON:
+{
+  "images": [
+    { "index": 0, "url": "...", "image_type": "...", "confidence": 0.0-1.0, "visual_notes": "..." }
+  ],
+  "visual_attributes": {
+    "Dominant Color": { "value": "...", "confidence": 0.0-1.0 },
+    "Form Factor": { "value": "...", "confidence": 0.0-1.0 },
+    "Material": { "value": "...", "confidence": 0.0-1.0 },
+    "Surface Finish": { "value": "...", "confidence": 0.0-1.0 }
+  },
+  "visual_summary": "2-3 sentence description"
+}` }
+    ];
+
+    imageUrls.forEach((url, i) => {
+      userContent.push({ type: 'image_url', image_url: { url } });
+    });
+
+    const response = await callAI({
+      model: 'gpt-4o',
+      response_format: { type: 'json_object' },
+      messages: [{
+        role: 'system',
+        content: 'You are a product image classification and visual analysis engine. Classify each image by its type and extract visual attributes.'
+      }, {
+        role: 'user',
+        content: userContent
+      }]
+    });
+
+    const result = safeParseJSON(response.choices[0].message.content);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('Image tag error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 4b: Image Enrichment (Visual Attribute Analysis) — supports base64 or URL
 app.post('/api/enrich/image-analysis', async (req, res) => {
   try {

@@ -781,17 +781,25 @@ function switchEnrichProduct(idx) {
   // Populate attributes table
   populateEnrichmentTable();
 
-  // Setup image for enrichment
-  if (product._imageUrl) {
-    document.getElementById('image-enrich-preview').innerHTML =
-      `<img src="${product._imageUrl}" style="max-width:100%;max-height:250px;border-radius:8px;border:1px solid var(--gray-200)" onerror="this.style.display='none'">`;
+  // Setup image gallery for enrichment — show ALL image URLs
+  const gallery = document.getElementById('image-enrich-gallery');
+  gallery.innerHTML = '';
+  const imgUrls = product.image_urls || (product._imageUrl ? [product._imageUrl] : []);
+  if (imgUrls.length > 0) {
+    imgUrls.forEach((url, i) => {
+      gallery.innerHTML += `<div class="img-tag-card">
+        <img src="${url}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 160 100%22><rect fill=%22%23f1f3f5%22 width=%22160%22 height=%22100%22/><text x=%2280%22 y=%2255%22 text-anchor=%22middle%22 fill=%22%23adb5bd%22 font-size=%2212%22>No image</text></svg>'">
+        <div class="img-tag-info">
+          <div style="font-size:10px;color:var(--gray-500)">Image ${i + 1}</div>
+          <div id="img-tag-label-${i}" style="margin-top:4px"><span class="img-tag-badge default">Untagged</span></div>
+        </div>
+      </div>`;
+    });
     document.getElementById('run-image-enrichment-btn').style.display = '';
-    // We don't have base64 for URL images, so set flag for server-side fetch
     uploadedImageBase64 = null;
     uploadedImageMime = null;
   } else {
-    document.getElementById('image-enrich-preview').innerHTML =
-      '<div class="empty-state" style="padding:30px"><div class="icon">&#x1F4F7;</div><h3>No image available</h3></div>';
+    gallery.innerHTML = '<div class="empty-state" style="padding:20px;width:100%"><div class="icon">&#x1F4F7;</div><h3>No images available</h3></div>';
     document.getElementById('run-image-enrichment-btn').style.display = 'none';
   }
 
@@ -1043,54 +1051,80 @@ async function runEnrichment() {
 
 // ── 4b: IMAGE ENRICHMENT ──────────────────────────────────
 async function runImageEnrichment() {
-  const hasBase64 = !!uploadedImageBase64;
-  const hasUrl = currentProduct && currentProduct._imageUrl;
-  if (!hasBase64 && !hasUrl) return;
+  const imgUrls = currentProduct.image_urls || (currentProduct._imageUrl ? [currentProduct._imageUrl] : []);
+  if (imgUrls.length === 0 && !uploadedImageBase64) return;
 
-  showLoading('Analysing Image', 'Generating visual attributes from product photo...');
-
-  const payload = {};
-  if (hasBase64) {
-    payload.imageBase64 = uploadedImageBase64;
-    payload.mimeType = uploadedImageMime;
-  } else if (hasUrl) {
-    payload.imageUrl = currentProduct._imageUrl;
-  }
+  showLoading('Analysing & Tagging Images', `Processing ${imgUrls.length} image(s) — classifying types and extracting visual attributes...`);
 
   try {
-    const res = await fetch('/api/enrich/image-analysis', {
+    // Use the batch image tagging endpoint
+    const res = await fetch('/api/enrich/image-tag', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        imageUrls: imgUrls,
+        productName: currentProduct.product_name || ''
+      })
     });
     const json = await res.json();
     hideLoading();
 
     if (!json.success) throw new Error(json.error);
-
     const data = json.data;
 
+    // Image type tag CSS class mapping
+    const tagClassMap = {
+      'lifestyle': 'lifestyle', 'hero': 'hero', 'side view': 'default',
+      'close-up': 'close-up', 'room set': 'room-set', 'feature callout': 'default',
+      'dimension diagram': 'diagram', 'overhead view': 'default', 'color swatch': 'default',
+      'back view': 'default', 'packaging': 'packaging', 'in-use': 'in-use',
+      'assembly instruction': 'diagram', 'certification': 'default', 'component': 'default',
+      'comparison': 'default', 'scale reference': 'default'
+    };
+
+    // Update gallery with tags
+    const images = data.images || [];
+    images.forEach((img, i) => {
+      const labelEl = document.getElementById(`img-tag-label-${img.index !== undefined ? img.index : i}`);
+      if (labelEl) {
+        const tagType = (img.image_type || 'Unknown').toLowerCase();
+        const cls = tagClassMap[tagType] || 'default';
+        labelEl.innerHTML = `<span class="img-tag-badge ${cls}">${img.image_type || 'Unknown'}</span>`;
+      }
+    });
+
+    // Show tagged images in results section
+    const tagsGrid = document.getElementById('image-tags-grid');
+    tagsGrid.innerHTML = '';
+    images.forEach((img, i) => {
+      const url = imgUrls[img.index !== undefined ? img.index : i] || '';
+      const tagType = (img.image_type || 'Unknown').toLowerCase();
+      const cls = tagClassMap[tagType] || 'default';
+      tagsGrid.innerHTML += `<div class="img-tag-card">
+        <img src="${url}" onerror="this.style.display='none'">
+        <div class="img-tag-info">
+          <span class="img-tag-badge ${cls}">${img.image_type || 'Unknown'}</span>
+          ${img.confidence ? `<span style="font-size:10px;color:var(--gray-500);margin-left:4px">${Math.round(img.confidence * 100)}%</span>` : ''}
+          <div style="font-size:10px;color:var(--gray-500);margin-top:4px">${img.visual_notes || ''}</div>
+        </div>
+      </div>`;
+    });
+
+    // Visual attributes
     if (data.visual_summary) {
       document.getElementById('visual-summary').textContent = data.visual_summary;
     }
 
     const grid = document.getElementById('visual-attrs-grid');
     grid.innerHTML = '';
-
-    Object.entries(data.visual_attributes).forEach(([key, val]) => {
-      const v = typeof val === 'object' ? val : { value: val, confidence: 0.85 };
-      grid.innerHTML += `<div class="visual-attr">
-        <div class="va-name">${key}</div>
-        <div class="va-value">${v.value} ${confidenceBadge(v.confidence || 0.85)}</div>
-      </div>`;
-    });
-
-    // Show analysis methods as sources
-    if (data.analysis_methods && data.analysis_methods.length) {
-      document.getElementById('image-enrich-sources-container').innerHTML = '';
-      renderSourcesPanel('image-enrich-sources-container', data.analysis_methods.map(m => ({
-        name: m.name, type: m.type, description: m.description, status: m.status
-      })), 'Analysis Methods — Computer Vision Pipeline', 'sources');
+    if (data.visual_attributes) {
+      Object.entries(data.visual_attributes).forEach(([key, val]) => {
+        const v = typeof val === 'object' ? val : { value: val, confidence: 0.85 };
+        grid.innerHTML += `<div class="visual-attr">
+          <div class="va-name">${key}</div>
+          <div class="va-value">${v.value} ${confidenceBadge(v.confidence || 0.85)}</div>
+        </div>`;
+      });
     }
 
     document.getElementById('image-enrich-results').classList.add('visible');

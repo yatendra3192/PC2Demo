@@ -578,6 +578,47 @@ body {
 .source-tag.pdp { background: rgba(41, 128, 185, 0.1); color: var(--blue); }
 .source-tag.catalog-inferred { background: rgba(230, 126, 34, 0.1); color: #D35400; }
 
+/* ── IMAGE TAG CARDS ──────────────────────────── */
+.img-tag-card {
+  width: 160px;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  overflow: hidden;
+  background: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.img-tag-card img {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  display: block;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.img-tag-card .img-tag-info {
+  padding: 8px 10px;
+}
+
+.img-tag-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.img-tag-badge.lifestyle { background: rgba(39,174,96,0.1); color: var(--green); }
+.img-tag-badge.hero { background: rgba(41,128,185,0.1); color: var(--blue); }
+.img-tag-badge.close-up { background: rgba(142,68,173,0.1); color: var(--purple); }
+.img-tag-badge.room-set { background: rgba(230,126,34,0.1); color: var(--orange); }
+.img-tag-badge.diagram { background: rgba(52,73,94,0.1); color: #2C3E50; }
+.img-tag-badge.in-use { background: rgba(39,174,96,0.1); color: var(--green); }
+.img-tag-badge.packaging { background: rgba(243,156,18,0.1); color: #D4AC0D; }
+.img-tag-badge.default { background: var(--gray-100); color: var(--gray-600); }
+
 /* ── MULTI-IMAGE CARDS ─────────────────────────── */
 .image-result-card {
   background: white;

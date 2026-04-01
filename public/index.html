@@ -489,22 +489,30 @@
           </div>
         </div>
 
-        <!-- 4b: Image Enrichment -->
+        <!-- 4b: Image Enrichment + Tagging -->
         <div class="sub-panel" id="enrich-image">
           <div class="card">
-            <div class="card-header">Visual Attribute Analysis</div>
+            <div class="card-header">
+              <span>Image Analysis &amp; Tagging</span>
+              <button class="btn btn-primary btn-sm" id="run-image-enrichment-btn" onclick="runImageEnrichment()">&#x1F441; Analyse &amp; Tag All Images</button>
+            </div>
             <div class="card-body">
               <p style="margin-bottom:16px;font-size:14px;color:var(--gray-600)">
-                Analyse the product image to generate <strong>visual attributes</strong> &mdash; things visible in the photo that aren't written anywhere.
-                <em>Different from Ingestion (which reads text). Here we analyse what the product looks like.</em>
+                Analyse product images for visual attributes and automatically classify each image by type (Lifestyle, Hero, Close-up, etc.)
               </p>
-              <div id="image-enrich-preview" style="text-align:center;margin-bottom:16px"></div>
-              <button class="btn btn-primary" id="run-image-enrichment-btn" onclick="runImageEnrichment()">&#x1F441; Analyse Product Image</button>
+              <div id="image-enrich-gallery" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px"></div>
+              <div id="image-enrich-preview" style="display:none"></div>
             </div>
           </div>
           <div class="results-grid" id="image-enrich-results">
             <div id="image-enrich-sources-container"></div>
-            <div class="flow-indicator">&#x2705; Visual attributes generated from product image analysis</div>
+            <div class="flow-indicator">&#x2705; Images analysed — types tagged and visual attributes generated</div>
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header">Image Tags</div>
+              <div class="card-body" style="padding:0">
+                <div id="image-tags-grid" style="display:flex;flex-wrap:wrap;gap:12px;padding:16px"></div>
+              </div>
+            </div>
             <div class="card">
               <div class="card-header">Visual Attributes</div>
               <div class="card-body">
