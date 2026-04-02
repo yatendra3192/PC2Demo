@@ -1759,6 +1759,84 @@ function loadKB() {
 // Load KB on startup
 try { loadKB(); } catch (e) { console.log('KB load deferred:', e.message); }
 
+// ── WAYFAIR KB ──────────────────────────────────────────
+let wayfairKBCache = null;
+
+function loadWayfairKB() {
+  if (wayfairKBCache) return wayfairKBCache;
+  const XLSX = require('xlsx');
+  const filePath = path.join(__dirname, 'kb', 'wayfair_categories.xlsx');
+  if (!fs.existsSync(filePath)) return null;
+  const wb = XLSX.readFile(filePath);
+  const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+  // Build class map: ClID -> { name, attributes[] }
+  const classMap = {};
+  data.forEach(r => {
+    const clId = r.ClID;
+    if (!clId) return;
+    if (!classMap[clId]) classMap[clId] = { id: clId, name: r.ClName || '', attributes: [] };
+    if (!classMap[clId].name && r.ClName) classMap[clId].name = r.ClName;
+    classMap[clId].attributes.push({
+      name: r.tag_name || '',
+      definition: r.tag_definition || '',
+      instructions: r.offshore_instructions || '',
+      allowedValues: r.allowed_values || '',
+      dataType: r.tag_values_data_type || '',
+      priority: r.priority || '',
+      isLegal: r.is_legal || false
+    });
+  });
+
+  const classes = Object.values(classMap);
+  wayfairKBCache = {
+    classes,
+    classMap,
+    classNames: classes.map(c => ({ id: c.id, name: c.name })).filter(c => c.name),
+    stats: {
+      totalClasses: classes.length,
+      totalAttributes: data.length,
+      requiredAttrs: data.filter(r => r.priority === 'Required').length,
+      recommendedAttrs: data.filter(r => r.priority === 'Recommended').length,
+      optionalAttrs: data.filter(r => r.priority === 'Optional').length,
+    }
+  };
+  console.log(`Wayfair KB loaded: ${wayfairKBCache.stats.totalClasses} classes, ${wayfairKBCache.stats.totalAttributes} attributes`);
+  return wayfairKBCache;
+}
+
+try { loadWayfairKB(); } catch (e) { console.log('Wayfair KB load deferred:', e.message); }
+
+app.get('/api/kb/wayfair/stats', (req, res) => {
+  try {
+    const kb = loadWayfairKB();
+    if (!kb) return res.json({ success: false, error: 'Wayfair KB not loaded' });
+    res.json({ success: true, data: kb.stats });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+app.get('/api/kb/wayfair/classes', (req, res) => {
+  try {
+    const kb = loadWayfairKB();
+    if (!kb) return res.json({ success: true, data: { classes: [], total: 0 } });
+    const search = (req.query.search || '').toLowerCase();
+    let classes = kb.classNames;
+    if (search) classes = classes.filter(c => c.name.toLowerCase().includes(search) || String(c.id).includes(search));
+    res.json({ success: true, data: { classes: classes.slice(0, 200), total: classes.length } });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+app.get('/api/kb/wayfair/attributes', (req, res) => {
+  try {
+    const kb = loadWayfairKB();
+    if (!kb) return res.json({ success: true, data: { attributes: [], total: 0 } });
+    const classId = req.query.classId;
+    const cls = kb.classMap[classId];
+    if (!cls) return res.json({ success: true, data: { attributes: [], total: 0, className: '' } });
+    res.json({ success: true, data: { attributes: cls.attributes, total: cls.attributes.length, className: cls.name } });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
 app.get('/api/kb/stats', (req, res) => {
   try {
     const kb = loadKB();

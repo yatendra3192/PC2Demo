@@ -1,5 +1,16 @@
 // ── PC2 v2.0 — Frontend Application ──────────────────────
 
+// ── CLIENT MODE ──────────────────────────────────────────
+let clientMode = 'siteone'; // 'siteone' or 'wayfair'
+
+function switchClient(mode) {
+  clientMode = mode;
+  console.log('Client mode:', mode);
+  // Visual indicator
+  document.getElementById('client-toggle').style.borderColor = mode === 'wayfair' ? '#7B2D8E' : 'var(--gray-300)';
+  document.getElementById('client-toggle').style.background = mode === 'wayfair' ? '#F5F0F7' : 'white';
+}
+
 // ── STATE ─────────────────────────────────────────────────
 let currentProduct = null;   // Shared product state across modules
 let allIngestedProducts = []; // All products from multi-image ingestion
@@ -875,9 +886,13 @@ async function runEnrichment() {
   const tpl = (bulkIdx !== undefined && pipelineState.templates[bulkIdx]) ? pipelineState.templates[bulkIdx].template : null;
   const acrBeforeData = computeACR(currentProduct, tpl);
 
-  // ── Step 1: Look up Prefilled Catalog data ──
-  showLoading('Enrichment Step 1/3', 'Looking up product in Prefilled Catalog...');
+  // ── Step 1: Look up Prefilled Catalog data (skip in Wayfair mode) ──
+  const isWayfair = clientMode === 'wayfair';
+  const totalSteps = isWayfair ? 1 : 3;
   let catalogFilled = 0;
+
+  if (!isWayfair) {
+  showLoading(`Enrichment Step 1/${totalSteps}`, 'Looking up product in Prefilled Catalog...');
   try {
     const sku = currentProduct._productId || currentProduct.product_id || '';
     const name = currentProduct.product_name || '';
@@ -909,10 +924,11 @@ async function runEnrichment() {
       });
     }
   } catch (e) { console.log('Catalog lookup failed:', e.message); }
+  } // end if (!isWayfair) for catalog
 
-  // ── Step 2: PDP gap-fill for remaining missing ──
-  const hasPdp = currentProduct.pdp_url;
-  const hasPdf = currentProduct.pdf_urls && currentProduct.pdf_urls.length > 0;
+  // ── Step 2: PDP gap-fill for remaining missing (skip in Wayfair mode) ──
+  const hasPdp = !isWayfair && currentProduct.pdp_url;
+  const hasPdf = !isWayfair && currentProduct.pdf_urls && currentProduct.pdf_urls.length > 0;
   let pdpFilled = 0;
 
   if (hasPdp || hasPdf) {
@@ -948,7 +964,7 @@ async function runEnrichment() {
   }
 
   // ── Step 3: LLM enrichment for any remaining gaps ──
-  showLoading('Enrichment Step 3/3', 'LLM filling remaining gaps from Knowledge Base...');
+  showLoading(isWayfair ? 'Enrichment' : `Enrichment Step ${totalSteps}/${totalSteps}`, isWayfair ? 'Extracting attributes from provided feed data only (no external sources)...' : 'LLM filling remaining gaps from Knowledge Base...');
 
   try {
     const res = await fetch('/api/enrich/attributes', {
@@ -1028,7 +1044,9 @@ async function runEnrichment() {
     document.getElementById('acr-after-card').style.display = 'block';
     document.getElementById('acr-after-val').textContent = acrAfterData.acr + '%';
     document.getElementById('acr-improvement').innerHTML =
-      `&#x2B06; +${acrAfterData.acr - acrBeforeData.acr}% &mdash; ${totalFilled} gaps filled (${catalogFilled} catalog, ${pdpFilled} PDP, ${llmFilled} LLM)`;
+      isWayfair
+        ? `&#x2B06; +${acrAfterData.acr - acrBeforeData.acr}% &mdash; ${llmFilled} gaps filled from feed data only`
+        : `&#x2B06; +${acrAfterData.acr - acrBeforeData.acr}% &mdash; ${totalFilled} gaps filled (${catalogFilled} catalog, ${pdpFilled} PDP, ${llmFilled} LLM)`;
 
     // Show sources consulted
     if (enriched.sources_consulted && enriched.sources_consulted.length) {
@@ -2322,13 +2340,14 @@ async function exportEnrichedData() {
 // Run enrichment + copy generation for all products in batch
 async function runBulkEnrichAndCopy(products) {
   const total = products.length;
+  const isWF = clientMode === 'wayfair';
 
   for (let i = 0; i < total; i++) {
     const p = products[i];
     showLoading(`Processing ${i + 1}/${total}`, `Enriching: ${p.product_name}...`);
 
-    // Step 1: Catalog lookup
-    try {
+    // Step 1: Catalog lookup (skip in Wayfair mode)
+    if (!isWF) try {
       const catRes = await fetch(`/api/catalog/lookup?sku=${encodeURIComponent(p._productId || p.product_id || '')}&name=${encodeURIComponent(p.product_name || '')}`);
       const catJson = await catRes.json();
       if (catJson.success && catJson.data) {
