@@ -9,6 +9,10 @@ function switchClient(mode) {
   // Visual indicator
   document.getElementById('client-toggle').style.borderColor = mode === 'wayfair' ? '#7B2D8E' : 'var(--gray-300)';
   document.getElementById('client-toggle').style.background = mode === 'wayfair' ? '#F5F0F7' : 'white';
+  // Reload KB data for new client
+  document.getElementById('kb-attr-class-select').innerHTML = '<option value="">-- Select a class --</option>';
+  loadKBStats();
+  loadKBCategories();
 }
 
 // ── STATE ─────────────────────────────────────────────────
@@ -2683,19 +2687,63 @@ let kbCategoriesCache = [];
 
 async function loadKBStats() {
   try {
-    const res = await fetch('/api/kb/stats');
-    const json = await res.json();
-    if (!json.success) return;
-    const s = json.data;
-    document.getElementById('kb-stat-cats').textContent = s.totalCategories.toLocaleString();
-    document.getElementById('kb-stat-attrs').textContent = s.totalAttributes.toLocaleString();
-    document.getElementById('kb-stat-rules').textContent = s.totalRules;
+    if (clientMode === 'wayfair') {
+      const res = await fetch('/api/kb/wayfair/stats');
+      const json = await res.json();
+      if (!json.success) return;
+      const s = json.data;
+      document.getElementById('kb-stat-cats').textContent = s.totalClasses.toLocaleString();
+      document.getElementById('kb-stat-attrs').textContent = s.totalAttributes.toLocaleString();
+      document.getElementById('kb-stat-rules').textContent = `${s.requiredAttrs.toLocaleString()} req`;
+    } else {
+      const res = await fetch('/api/kb/stats');
+      const json = await res.json();
+      if (!json.success) return;
+      const s = json.data;
+      document.getElementById('kb-stat-cats').textContent = s.totalCategories.toLocaleString();
+      document.getElementById('kb-stat-attrs').textContent = s.totalAttributes.toLocaleString();
+      document.getElementById('kb-stat-rules').textContent = s.totalRules;
+    }
   } catch (e) { console.log('KB stats load error:', e); }
 }
 
 async function loadKBCategories() {
   try {
     const search = (document.getElementById('kb-cat-search') || {}).value || '';
+
+    if (clientMode === 'wayfair') {
+      // Load Wayfair classes
+      const res = await fetch('/api/kb/wayfair/classes?search=' + encodeURIComponent(search));
+      const json = await res.json();
+      if (!json.success) return;
+
+      document.getElementById('kb-cat-count').textContent = json.data.total;
+      const tbody = document.getElementById('kb-cat-table-body');
+      tbody.innerHTML = '';
+
+      // Populate class selector for attributes
+      const select = document.getElementById('kb-attr-class-select');
+      if (select && select.options.length <= 1) {
+        json.data.classes.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = `${c.id} — ${c.name}`;
+          select.appendChild(opt);
+        });
+      }
+
+      json.data.classes.forEach(c => {
+        tbody.innerHTML += `<tr class="bulk-row" onclick="viewWayfairClassAttributes(${c.id})">
+          <td style="font-weight:600;color:var(--blue);font-size:11px">${c.id}</td>
+          <td><span style="font-weight:600;color:var(--gray-800)">${c.name}</span></td>
+          <td style="text-align:center">—</td>
+          <td style="text-align:center">—</td>
+          <td><button class="btn btn-sm btn-secondary" style="padding:2px 8px;font-size:10px" onclick="event.stopPropagation();viewWayfairClassAttributes(${c.id})">View</button></td>
+        </tr>`;
+      });
+      return;
+    }
+
     const res = await fetch('/api/kb/categories?search=' + encodeURIComponent(search));
     const json = await res.json();
     if (!json.success) return;
@@ -2737,6 +2785,10 @@ function searchKBCategories() {
   loadKBCategories();
 }
 
+function viewWayfairClassAttributes(classId) {
+  viewClassAttributes(classId);
+}
+
 function viewClassAttributes(classId) {
   // Switch to attributes sub-tab
   const panel = document.getElementById('panel-kb');
@@ -2761,6 +2813,44 @@ async function loadKBAttributes() {
   }
 
   try {
+    // Wayfair mode: use Wayfair KB endpoint
+    if (clientMode === 'wayfair' && classId) {
+      const res = await fetch(`/api/kb/wayfair/attributes?classId=${classId}`);
+      const json = await res.json();
+      if (!json.success) return;
+
+      const attrs = json.data.attributes;
+      const pathEl = document.getElementById('kb-attr-class-path');
+      pathEl.style.display = 'block';
+      document.getElementById('kb-attr-class-path-text').textContent = json.data.className || 'Wayfair Class ' + classId;
+      document.getElementById('kb-attr-total-text').textContent = `${json.data.total} attributes`;
+
+      const tbody = document.getElementById('kb-attr-table-body');
+      tbody.innerHTML = '';
+
+      if (attrs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--gray-400)">No attributes found</td></tr>';
+        return;
+      }
+
+      attrs.forEach(a => {
+        const priBadge = a.priority === 'Required' ? '<span class="required-badge">REQ</span>'
+          : a.priority === 'Recommended' ? '<span class="recommended-badge">REC</span>'
+          : '<span class="optional-badge">OPT</span>';
+        const dtBadge = a.dataType ? `<span class="source-tag" style="font-size:10px">${a.dataType}</span>` : '';
+
+        tbody.innerHTML += `<tr>
+          <td class="field-name">${a.name}</td>
+          <td style="text-align:center">${priBadge}</td>
+          <td>${dtBadge}</td>
+          <td style="font-size:11px;color:var(--gray-600)">${(a.instructions || a.definition || '').substring(0, 80) || '<span style="color:var(--gray-300)">—</span>'}</td>
+          <td style="font-size:11px;color:var(--gray-500)">${(a.allowedValues || '').substring(0, 60) || '<span style="color:var(--gray-300)">—</span>'}</td>
+          <td style="text-align:center">${a.isLegal ? '<span style="color:var(--red);font-weight:600;font-size:11px">Legal</span>' : ''}</td>
+        </tr>`;
+      });
+      return;
+    }
+
     const res = await fetch(`/api/kb/attributes?classId=${classId}&search=${encodeURIComponent(search)}`);
     const json = await res.json();
     if (!json.success) return;
