@@ -847,9 +847,21 @@ app.post('/api/ingest/deduplicate', async (req, res) => {
       response_format: { type: 'json_object' },
       messages: [{
         role: 'system',
-        content: `You are PC2's deduplication engine. Given a list of products, identify potential duplicate groups — products that are the same item listed multiple times with slightly different names, SKUs, or descriptions.
+        content: `You are PC2's intelligent deduplication engine. Given a list of products, identify potential duplicate groups — products that are the same item listed multiple times with slightly different names, SKUs, or descriptions.
 
-Compare by: product name similarity, brand, model number patterns, description overlap, attribute overlap.
+MATCHING CRITERIA (use ALL of these):
+1. Product name similarity (semantic, not just string match)
+2. Description overlap and meaning
+3. Image URL similarity (same CDN paths or same image filenames = strong signal)
+4. Attribute/spec overlap
+5. SKU pattern similarity (e.g., 140373887, 140373888, 140373889 = likely variants)
+6. Consider color/size variants as POSSIBLE matches, not exact duplicates
+
+SCORING:
+- exact_match (0.95-1.0): Same product, same everything. Different SKU but identical content.
+- high_similarity (0.80-0.94): Same product, minor differences (color, power option). Flag for review.
+- possible_match (0.60-0.79): Might be same product line, different variant. Needs human check.
+- Below 0.60: Not a match, don't include.
 
 Return JSON:
 {
@@ -858,7 +870,7 @@ Return JSON:
       "group_id": 1,
       "match_type": "exact_match" | "high_similarity" | "possible_match",
       "match_score": 0.0-1.0,
-      "reason": "why these are considered duplicates",
+      "reason": "detailed explanation including which signals matched (name, images, SKU pattern, description)",
       "products": [
         { "index": 0, "product_name": "...", "product_id": "...", "is_primary": true },
         { "index": 1, "product_name": "...", "product_id": "...", "is_primary": false }
@@ -868,13 +880,15 @@ Return JSON:
   "unique_count": 0,
   "total_scanned": 0,
   "dedup_methods": [
-    { "name": "...", "type": "database", "description": "...", "status": "completed" }
+    { "name": "Semantic Name Matching", "type": "ai", "description": "LLM-based semantic comparison", "status": "completed" },
+    { "name": "Image URL Similarity", "type": "ai", "description": "CDN path pattern analysis", "status": "completed" },
+    { "name": "SKU Pattern Analysis", "type": "ai", "description": "Sequential SKU detection", "status": "completed" }
   ]
 }
-Mark the most complete record as is_primary=true (the one to keep). If no duplicates exist, return empty duplicate_groups array. Be thorough but avoid false positives — only flag genuinely similar products.`
+Mark the most complete record as is_primary=true. Be thorough — catch color/size variants as possible matches.`
       }, {
         role: 'user',
-        content: `Scan these ${products.length} products for duplicates:\n${JSON.stringify(products.map((p, i) => ({ index: i, id: p.product_id, name: p.product_name, description: (p.description || '').substring(0, 200) })), null, 2)}`
+        content: `Scan these ${products.length} products for duplicates:\n${JSON.stringify(products.map((p, i) => ({ index: i, id: String(p.product_id), name: p.product_name, description: (p.description || '').substring(0, 300), image_urls: (p.image_urls || []).slice(0, 2) })), null, 2)}`
       }]
     });
 
@@ -1059,56 +1073,69 @@ Be thorough — extract every possible attribute. Include material, dimensions, 
 // 1c: Batch categorize all products in one GPT-4o call
 app.post('/api/ingest/bulk/categorize-batch', async (req, res) => {
   try {
-    const { products } = req.body;
+    const { products, clientMode } = req.body;
     if (!products || products.length === 0) {
       return res.status(400).json({ success: false, error: 'No products provided' });
     }
 
-    // Build real category taxonomy from KB
+    const isWayfair = clientMode === 'wayfair';
     let categoryTaxonomy = '';
-    try {
-      const kb = loadKB();
-      // Group by top-level category
-      const grouped = {};
-      kb.categories.forEach(c => {
-        const parts = c.path.split('>').map(s => s.trim());
-        const top = parts[0] || 'Other';
-        if (!grouped[top]) grouped[top] = [];
-        grouped[top].push({ path: c.path, classId: c.classId });
-      });
-      // Build compact list (limit to keep prompt reasonable)
-      const lines = [];
-      Object.entries(grouped).forEach(([top, classes]) => {
-        const classNames = classes.map(c => {
+    let taxonomyLabel = '';
+    let totalClasses = 0;
+
+    if (isWayfair) {
+      // Use Wayfair KB (1,630 classes)
+      try {
+        const wkb = loadWayfairKB();
+        const classNames = wkb.classNames.filter(c => c.name);
+        totalClasses = classNames.length;
+        taxonomyLabel = 'Wayfair';
+        // Send class names with IDs (limit to keep prompt manageable)
+        categoryTaxonomy = classNames.map(c => `${c.name} [ID:${c.id}]`).join('\n');
+      } catch (e) {
+        categoryTaxonomy = 'Armoires & Wardrobes, Dressers & Chests, Recliners, Office Chairs, Beds, Nightstands, TV Stands, Sofas, Dining Tables, Mattresses';
+        totalClasses = 1630;
+      }
+    } else {
+      // Use SiteOne KB (563 classes)
+      try {
+        const kb = loadKB();
+        totalClasses = kb.stats.totalCategories;
+        taxonomyLabel = 'SiteOne';
+        const grouped = {};
+        kb.categories.forEach(c => {
           const parts = c.path.split('>').map(s => s.trim());
-          return `${parts.slice(1).join(' > ')} [ID:${c.classId}]`;
+          const top = parts[0] || 'Other';
+          if (!grouped[top]) grouped[top] = [];
+          grouped[top].push({ path: c.path, classId: c.classId });
         });
-        lines.push(`${top}:\n  ${classNames.join('\n  ')}`);
-      });
-      categoryTaxonomy = lines.join('\n');
-    } catch (kbErr) {
-      // Fallback to basic categories if KB not available
-      categoryTaxonomy = `Irrigation: Controllers, Valves, Sprinkler Heads, Spray Heads, Drip Irrigation, Pipes & Fittings, Sensors, Nozzle Kits, Filters, Accessories
-Outdoor Lighting: LED Fixtures, Transformers, Path Lights, Spot Lights
-Nursery: Trees, Shrubs, Perennials, Annuals
-Hardscape: Pavers, Retaining Walls, Natural Stone, Edging
-Drainage: Channel Drains, Catch Basins, Drain Pipe
-Agronomics: Fertilizers, Seed, Soil Amendments, Pest Control
-Equipment: Power Equipment, Hand Tools, Safety Gear`;
+        const lines = [];
+        Object.entries(grouped).forEach(([top, classes]) => {
+          const classNames = classes.map(c => {
+            const parts = c.path.split('>').map(s => s.trim());
+            return `${parts.slice(1).join(' > ')} [ID:${c.classId}]`;
+          });
+          lines.push(`${top}:\n  ${classNames.join('\n  ')}`);
+        });
+        categoryTaxonomy = lines.join('\n');
+      } catch (kbErr) {
+        categoryTaxonomy = 'Irrigation, Outdoor Lighting, Nursery, Hardscape, Drainage, Agronomics, Equipment';
+        totalClasses = 563;
+      }
     }
 
-    const productList = products.map((p, i) => `${i + 1}. SKU: ${p.product_id} | Name: ${p.product_name} | Description: ${(p.description || '').substring(0, 200)}`).join('\n');
+    const productList = products.map((p, i) => `${i + 1}. SKU: ${String(p.product_id)} | Name: ${p.product_name} | Description: ${(p.description || '').substring(0, 200)}`).join('\n');
 
     const response = await callAI({
       model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [{
         role: 'system',
-        content: `You are PC2's batch category identification engine for SiteOne Landscape Supply. Given a list of products, identify the EXACT category class from SiteOne's Knowledge Base taxonomy below.
+        content: `You are PC2's batch category identification engine. Given a list of products, identify the EXACT category class from the ${taxonomyLabel} taxonomy below.
 
-IMPORTANT: You MUST match products to one of the EXACT class paths and class IDs listed below. Do NOT invent categories — use the closest match from this taxonomy.
+IMPORTANT: You MUST match each product to a SPECIFIC, DIFFERENT class from the taxonomy. Products like Wardrobes, Dressers, and Recliners should each get their own correct class — do NOT assign them all the same generic class.
 
-=== SiteOne Category Taxonomy (${(() => { try { return loadKB().stats.totalCategories; } catch(e) { return '500+'; } })() } classes) ===
+=== ${taxonomyLabel} Category Taxonomy (${totalClasses} classes) ===
 ${categoryTaxonomy}
 
 Return JSON:
@@ -1118,8 +1145,8 @@ Return JSON:
       "index": 0,
       "sku": "...",
       "product_name": "...",
-      "category": "full path e.g. Irrigation>Drip Irrigation>Emitter Tubing",
-      "class": "leaf class name",
+      "category": "class name from taxonomy",
+      "class": "specific class name",
       "classId": class ID number from taxonomy,
       "confidence": 0.0-1.0,
       "reasoning": "brief reason for this classification"
@@ -1143,39 +1170,54 @@ Return JSON:
 // 1d: Get templates for categories (KB lookup — zero API calls)
 app.post('/api/ingest/bulk/get-templates', (req, res) => {
   try {
-    const { products } = req.body;
+    const { products, clientMode } = req.body;
     if (!products || products.length === 0) {
       return res.status(400).json({ success: false, error: 'No products provided' });
     }
 
+    const isWayfair = clientMode === 'wayfair';
     let kb;
     try { kb = loadKB(); } catch (e) { kb = null; }
+    let wkb;
+    try { wkb = loadWayfairKB(); } catch (e) { wkb = null; }
 
     const templates = products.map(p => {
       const cls = p.class || '';
       const classId = p.classId || '';
 
-      // Try KB lookup first — find attributes for this classId or matching class name
       let required = [];
       let optional = [];
       let kbSource = false;
 
-      if (kb) {
-        // Try by classId
+      if (isWayfair && wkb) {
+        // Wayfair KB lookup by classId
+        const wClass = wkb.classMap[classId];
+        if (wClass && wClass.attributes.length > 0) {
+          required = wClass.attributes.filter(a => a.priority === 'Required').map(a => a.name);
+          optional = wClass.attributes.filter(a => a.priority !== 'Required').map(a => a.name);
+          kbSource = true;
+        }
+        // Fallback: match by class name
+        if (!kbSource && cls) {
+          const matchClass = wkb.classes.find(c => c.name && c.name.toLowerCase() === cls.toLowerCase());
+          if (matchClass) {
+            required = matchClass.attributes.filter(a => a.priority === 'Required').map(a => a.name);
+            optional = matchClass.attributes.filter(a => a.priority !== 'Required').map(a => a.name);
+            kbSource = true;
+          }
+        }
+      } else if (kb) {
+        // SiteOne KB lookup
         let kbAttrs = [];
         if (classId) {
           kbAttrs = kb.attributes.filter(a => String(a.classId) === String(classId));
         }
-        // Fallback: try matching by class path
         if (kbAttrs.length === 0 && cls) {
-          const matchingCat = kb.categories.find(c =>
-            c.path.toLowerCase().includes(cls.toLowerCase())
-          );
+          const matchingCat = kb.categories.find(c => c.path.toLowerCase().includes(cls.toLowerCase()));
           if (matchingCat) {
             kbAttrs = kb.attributes.filter(a => String(a.classId) === String(matchingCat.classId));
           }
         }
-
         if (kbAttrs.length > 0) {
           required = kbAttrs.filter(a => a.mandatory === 'Yes').map(a => a.name);
           optional = kbAttrs.filter(a => a.mandatory !== 'Yes').map(a => a.name);
@@ -1302,11 +1344,19 @@ app.post('/api/ingest/bulk/extract-data', async (req, res) => {
     let promptText = `Extract product attributes for this product. Map values to the template fields provided.
 
 Product: ${product.product_name}
-SKU: ${product.product_id}
+SKU: ${String(product.product_id)}
 Description: ${product.description || 'N/A'}
 
 REQUIRED attributes to extract: ${requiredAttrs.join(', ')}
-OPTIONAL attributes to extract: ${optionalAttrs.join(', ')}`;
+OPTIONAL attributes to extract: ${optionalAttrs.join(', ')}
+
+IMPORTANT EXTRACTION RULES:
+- Extract Height, Length, Width, Weight, Dimensions from BOTH the PDF tables AND dimension diagrams in images
+- For images: read ALL text overlays, labels, measurement annotations, and dimension callouts
+- For PDFs: extract ALL table data, spec sheets, compliance info, certifications
+- If a value appears in the image dimension diagram (e.g., "36.5 in"), extract it with source "image"
+- If a value appears in PDF spec table, extract it with source "pdf"
+- Do NOT leave dimensions empty if they are visible in any source`;
 
     if (pdfText) {
       promptText += `\n\nPDF TEXT:\n${pdfText}`;

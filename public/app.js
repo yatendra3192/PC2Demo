@@ -1699,7 +1699,7 @@ async function runBatchCategorize() {
     const res = await fetch('/api/ingest/bulk/categorize-batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ products: bulkProducts })
+      body: JSON.stringify({ products: bulkProducts, clientMode })
     });
     const json = await res.json();
     hideLoading();
@@ -1759,7 +1759,7 @@ async function loadTemplates() {
     const res = await fetch('/api/ingest/bulk/get-templates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ products: productsWithCats })
+      body: JSON.stringify({ products: productsWithCats, clientMode })
     });
     const json = await res.json();
 
@@ -2095,7 +2095,8 @@ async function runWizardDedup() {
         product_id: p.product_id,
         product_name: extracted.product_name || p.product_name,
         description: p.description || '',
-        brand: extracted.brand || ''
+        brand: extracted.brand || '',
+        image_urls: p.image_urls || []
       };
     });
 
