@@ -1935,9 +1935,7 @@ async function runDataExtraction() {
     }
   }
 
-  btn.innerHTML = cachedCount > 0
-    ? `&#x2705; Extracted (${cachedCount} cached, ${total - cachedCount} fresh)`
-    : '&#x2705; Extracted';
+  btn.innerHTML = '&#x2705; Extracted';
   document.getElementById('wiz-next-3').disabled = false;
 
   // Show first product
@@ -2063,7 +2061,7 @@ function showExtractedProduct(idx) {
     return !userEdit && (!d || !d.value || d.value === 'null' || d.value === 'N/A');
   }).length;
 
-  const cacheNote = data._fromCache ? '<span class="source-tag catalog" style="margin-left:8px;font-size:10px">Cached — 0 API calls</span>' : '';
+  const cacheNote = '';
 
   container.innerHTML = `
     ${missingCount > 0 ? `<div class="flow-indicator warning" style="margin-bottom:12px">&#x26A0; ${missingCount} required attribute${missingCount !== 1 ? 's' : ''} missing — highlighted in red</div>` : '<div class="flow-indicator" style="margin-bottom:12px">&#x2705; All required attributes populated</div>'}
