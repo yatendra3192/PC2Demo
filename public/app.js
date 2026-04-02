@@ -81,32 +81,42 @@ function isExcludedAttr(name) {
 function computeACR(product, template) {
   const attrs = { ...(product.attributes || {}), ...(product.specifications || {}) };
   const attrKeys = Object.keys(attrs).filter(k => !isExcludedAttr(k));
+
+  function isFilled(key) {
+    const val = typeof attrs[key] === 'object' ? attrs[key].value : attrs[key];
+    const _lv = val ? String(val).trim().toLowerCase() : '';
+    return val && !['null','n/a','na','undefined','none','','—','-'].includes(_lv);
+  }
+
   let filled = 0;
   const missingNames = [];
 
   attrKeys.forEach(key => {
-    const val = typeof attrs[key] === 'object' ? attrs[key].value : attrs[key];
-    const _lv = val ? String(val).trim().toLowerCase() : '';
-    if (val && !['null','n/a','na','undefined','none','','—','-'].includes(_lv)) {
-      filled++;
-    } else {
-      missingNames.push(key);
-    }
+    if (isFilled(key)) { filled++; } else { missingNames.push(key); }
   });
 
-  // Cross-reference against template — required attrs not in extracted data
+  // Per-priority breakdown
+  const breakdown = { required: { filled: 0, total: 0 }, recommended: { filled: 0, total: 0 }, optional: { filled: 0, total: 0 } };
+
   if (template) {
-    const allTemplateAttrs = [...(template.required || []), ...(template.recommended || []), ...(template.optional || [])].filter(a => !isExcludedAttr(a));
-    allTemplateAttrs.forEach(reqAttr => {
-      const found = attrKeys.find(k => k.toLowerCase() === reqAttr.toLowerCase());
-      if (!found) missingNames.push(reqAttr);
+    ['required', 'recommended', 'optional'].forEach(priority => {
+      const list = (template[priority] || []).filter(a => !isExcludedAttr(a));
+      list.forEach(attrName => {
+        breakdown[priority].total++;
+        const found = attrKeys.find(k => k.toLowerCase() === attrName.toLowerCase());
+        if (found && isFilled(found)) {
+          breakdown[priority].filled++;
+        } else {
+          if (!found) missingNames.push(attrName);
+        }
+      });
     });
   }
 
   const missing = missingNames.length;
   const total = filled + missing;
   const acr = total > 0 ? Math.round((filled / total) * 100) : 0;
-  return { filled, total, missing, acr, missingNames };
+  return { filled, total, missing, acr, missingNames, breakdown };
 }
 
 // Strip large fields before sending to API
@@ -878,7 +888,19 @@ function populateEnrichmentTable() {
   }
 
   document.getElementById('acr-before-val').textContent = acrData.acr + '%';
-  document.getElementById('acr-before-detail').textContent = `${acrData.filled} of ${acrData.total} attributes filled (${acrData.missing} missing)`;
+
+  const bd = acrData.breakdown;
+  const reqPct = bd.required.total > 0 ? Math.round((bd.required.filled / bd.required.total) * 100) : 0;
+  const recPct = bd.recommended.total > 0 ? Math.round((bd.recommended.filled / bd.recommended.total) * 100) : 0;
+  const optPct = bd.optional.total > 0 ? Math.round((bd.optional.filled / bd.optional.total) * 100) : 0;
+
+  document.getElementById('acr-before-detail').innerHTML =
+    `${acrData.filled} of ${acrData.total} attributes filled (${acrData.missing} missing)` +
+    (bd.required.total > 0 ? `<div style="display:flex;gap:12px;margin-top:8px;font-size:12px">` +
+      `<span style="color:var(--red);font-weight:600">REQ: ${bd.required.filled}/${bd.required.total} (${reqPct}%)</span>` +
+      (bd.recommended.total > 0 ? `<span style="color:var(--orange);font-weight:600">REC: ${bd.recommended.filled}/${bd.recommended.total} (${recPct}%)</span>` : '') +
+      (bd.optional.total > 0 ? `<span style="color:var(--gray-500)">OPT: ${bd.optional.filled}/${bd.optional.total} (${optPct}%)</span>` : '') +
+    `</div>` : '');
 
   const circle = document.getElementById('acr-before-circle');
   circle.className = 'acr-circle ' + (acrData.acr < 50 ? 'low' : acrData.acr < 75 ? 'medium' : 'high');
