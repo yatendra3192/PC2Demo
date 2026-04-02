@@ -1218,7 +1218,7 @@ if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR);
 
 function getCacheKey(product) {
   // Key by SKU — same SKU = same product
-  const sku = (product.product_id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const sku = String(product.product_id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
   return sku || null;
 }
 
