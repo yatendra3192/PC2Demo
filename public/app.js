@@ -1992,68 +1992,47 @@ function showExtractedProduct(idx) {
   const allRequired = template.required || [];
   const allOptional = template.optional || [];
 
-  // Build editable table rows
-  let rows = '';
+  // Build editable table rows — collect all, then sort filled on top, missing on bottom
+  const allRows = [];
 
   // Helper: check if value is effectively missing
   function isMissingVal(v) { if (!v) return true; const lv = String(v).trim().toLowerCase(); return ['null','n/a','na','undefined','none','','—','-'].includes(lv); }
-  // Helper: clean display value (don't show "null" in inputs)
   function cleanVal(v) { return isMissingVal(v) ? '' : v; }
 
-  // Required attributes first
-  allRequired.forEach(attrName => {
-    const attrData = findAttr(attrs, attrName);
-    const value = attrData ? (attrData.value || '') : '';
-    const conf = attrData ? attrData.confidence : 0;
-    const sources = attrData ? (attrData.sources || attrData.source || '') : '';
+  function buildRow(attrName, badge, attrData, isExtra) {
+    const value = attrData ? (typeof attrData === 'object' ? (attrData.value || '') : String(attrData)) : '';
+    const conf = attrData ? (typeof attrData === 'object' ? attrData.confidence : 0.85) : 0;
+    const sources = attrData ? (typeof attrData === 'object' ? (attrData.sources || attrData.source || '') : '') : '';
     const missing = isMissingVal(value);
     const userEdit = pipelineState.userEdits[`${idx}_${attrName}`];
-
-    rows += `<tr class="${missing && !userEdit ? 'missing-attr-row' : ''}">
-      <td class="field-name">${attrName} <span class="required-badge">REQ</span></td>
+    const html = `<tr class="${missing && !userEdit ? 'missing-attr-row' : ''}">
+      <td class="field-name">${attrName}${badge ? ' ' + badge : ''}</td>
       <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || cleanVal(value))}" data-product="${idx}" data-attr="${attrName}" onchange="handleCellEdit(this)"></td>
-      <td>${!missing && sources ? multiSourceTags(sources) : (missing ? '<span style="color:var(--red);font-size:11px">missing</span>' : '')}</td>
-      <td>${!missing && conf ? confidenceBadge(conf) : (missing ? '' : '')}</td>
-    </tr>`;
-  });
-
-  // Optional attributes
-  allOptional.forEach(attrName => {
-    const attrData = findAttr(attrs, attrName);
-    const value = attrData ? (attrData.value || '') : '';
-    const conf = attrData ? attrData.confidence : 0;
-    const sources = attrData ? (attrData.sources || attrData.source || '') : '';
-    const missing = isMissingVal(value);
-    const userEdit = pipelineState.userEdits[`${idx}_${attrName}`];
-
-    rows += `<tr>
-      <td class="field-name">${attrName} <span class="optional-badge">OPT</span></td>
-      <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || cleanVal(value))}" data-product="${idx}" data-attr="${attrName}" onchange="handleCellEdit(this)"></td>
-      <td>${!missing && sources ? multiSourceTags(sources) : ''}</td>
+      <td>${!missing && sources ? multiSourceTags(sources) : (missing && !isExtra ? '<span style="color:var(--red);font-size:11px">missing</span>' : '')}</td>
       <td>${!missing && conf ? confidenceBadge(conf) : ''}</td>
     </tr>`;
-  });
+    return { html, filled: !missing || !!userEdit };
+  }
 
-  // Any extra attributes from extraction not in template
+  const allRecommended = template.recommended || [];
+
+  // Collect all template attributes
+  allRequired.forEach(a => allRows.push(buildRow(a, '<span class="required-badge">REQ</span>', findAttr(attrs, a), false)));
+  allRecommended.forEach(a => allRows.push(buildRow(a, '<span class="recommended-badge">REC</span>', findAttr(attrs, a), false)));
+  allOptional.forEach(a => allRows.push(buildRow(a, '<span class="optional-badge">OPT</span>', findAttr(attrs, a), false)));
+
+  // Extra attributes from extraction not in template
   Object.keys(attrs).forEach(key => {
     const normalized = key.toLowerCase();
-    const inTemplate = [...allRequired, ...allOptional].some(t => t.toLowerCase() === normalized);
-    if (!inTemplate) {
-      const attrData = attrs[key];
-      const value = typeof attrData === 'object' ? (attrData.value || '') : attrData;
-      const conf = typeof attrData === 'object' ? attrData.confidence : 0.85;
-      const sources = typeof attrData === 'object' ? (attrData.sources || attrData.source || '') : '';
-      const missing = isMissingVal(value);
-      const userEdit = pipelineState.userEdits[`${idx}_${key}`];
-
-      rows += `<tr>
-        <td class="field-name">${key}</td>
-        <td><input class="inline-edit ${userEdit ? 'user-edited' : ''}" value="${escapeHtml(userEdit || cleanVal(value))}" data-product="${idx}" data-attr="${key}" onchange="handleCellEdit(this)"></td>
-        <td>${!missing && sources ? multiSourceTags(sources) : ''}</td>
-        <td>${!missing && conf ? confidenceBadge(conf) : ''}</td>
-      </tr>`;
+    const inTemplate = [...allRequired, ...allRecommended, ...allOptional].some(t => t.toLowerCase() === normalized);
+    if (!inTemplate && !isExcludedAttr(key)) {
+      allRows.push(buildRow(key, '', attrs[key], true));
     }
   });
+
+  // Sort: filled first, missing last
+  allRows.sort((a, b) => (b.filled ? 1 : 0) - (a.filled ? 1 : 0));
+  let rows = allRows.map(r => r.html).join('');
 
   const missingCount = allRequired.filter(a => {
     const d = findAttr(attrs, a);
