@@ -2861,6 +2861,58 @@ function initKB() {
   loadKBRules();
 }
 
+// ── CONFIDENCE SCORING SETUP ──────────────────────────────
+function saveConfidenceWeights() {
+  const signals = ['s1','s2','s3','s4','s5','s6','s7'];
+  const sources = ['text','image','pdf'];
+  const weights = {};
+  let valid = true;
+
+  signals.forEach(s => {
+    weights[s] = {};
+    sources.forEach(src => {
+      const el = document.getElementById(`cw-${s}-${src}`);
+      const val = parseFloat(el.value);
+      if (isNaN(val) || val < 0 || val > 1) {
+        el.style.borderColor = 'var(--red)';
+        valid = false;
+      } else {
+        el.style.borderColor = '';
+        weights[s][src] = val;
+      }
+    });
+  });
+
+  // Validate weights sum to ~1.0 per source
+  sources.forEach(src => {
+    const sum = signals.reduce((acc, s) => acc + (weights[s]?.[src] || 0), 0);
+    if (Math.abs(sum - 1.0) > 0.05) {
+      alert(`${src.charAt(0).toUpperCase() + src.slice(1)} weights sum to ${sum.toFixed(2)} — should be close to 1.00`);
+      valid = false;
+    }
+  });
+
+  if (!valid) return;
+
+  // Store in localStorage
+  localStorage.setItem('pc2_confidence_weights', JSON.stringify(weights));
+  alert('Confidence weights saved successfully!');
+}
+
+// Load saved weights on init
+function loadConfidenceWeights() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('pc2_confidence_weights'));
+    if (!saved) return;
+    ['s1','s2','s3','s4','s5','s6','s7'].forEach(s => {
+      ['text','image','pdf'].forEach(src => {
+        const el = document.getElementById(`cw-${s}-${src}`);
+        if (el && saved[s] && saved[s][src] !== undefined) el.value = saved[s][src];
+      });
+    });
+  } catch(e) {}
+}
+
 // ── RULE BUILDER (local KB rules) ─────────────────────────
 async function loadRBRules() {
   try {
@@ -2897,3 +2949,4 @@ async function loadRBRules() {
 initDashboard();
 initKB();
 loadRBRules();
+loadConfidenceWeights();
