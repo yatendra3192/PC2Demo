@@ -1111,16 +1111,42 @@ app.post('/api/ingest/bulk/categorize-batch', async (req, res) => {
     let totalClasses = 0;
 
     if (isWayfair) {
-      // Use Wayfair KB (1,630 classes)
+      // Use Wayfair KB (1,630 classes) — smart filtering: extract keywords from products, match against class names
       try {
         const wkb = loadWayfairKB();
-        const classNames = wkb.classNames.filter(c => c.name);
-        totalClasses = classNames.length;
+        const allClasses = wkb.classNames.filter(c => c.name);
+        totalClasses = allClasses.length;
         taxonomyLabel = 'Wayfair';
-        // Send class names with IDs (limit to keep prompt manageable)
-        categoryTaxonomy = classNames.map(c => `${c.name} [ID:${c.id}]`).join('\n');
+
+        // Extract keywords from product names/descriptions to filter relevant classes
+        const keywords = new Set();
+        products.forEach(p => {
+          const text = `${p.product_name} ${p.description || ''}`.toLowerCase();
+          text.split(/[\s,;.&\-()]+/).filter(w => w.length > 3).forEach(w => keywords.add(w));
+        });
+
+        // Find classes that match any product keyword
+        let relevantClasses = allClasses.filter(c => {
+          const cName = c.name.toLowerCase();
+          return [...keywords].some(kw => cName.includes(kw));
+        });
+
+        // If too few matches, also add common furniture/home categories
+        if (relevantClasses.length < 20) {
+          const commonIds = new Set(relevantClasses.map(c => c.id));
+          allClasses.forEach(c => {
+            if (!commonIds.has(c.id) && /chair|sofa|bed|table|desk|cabinet|shelf|storage|mirror|dresser|wardrobe|armoire|recliner|ottoman|bench|stool|nightstand|bookcase|chest/i.test(c.name)) {
+              relevantClasses.push(c);
+              commonIds.add(c.id);
+            }
+          });
+        }
+
+        // Cap at 300 to keep prompt reasonable
+        relevantClasses = relevantClasses.slice(0, 300);
+        categoryTaxonomy = relevantClasses.map(c => `${c.name} [ID:${c.id}]`).join('\n');
       } catch (e) {
-        categoryTaxonomy = 'Armoires & Wardrobes, Dressers & Chests, Recliners, Office Chairs, Beds, Nightstands, TV Stands, Sofas, Dining Tables, Mattresses';
+        categoryTaxonomy = 'Armoires & Wardrobes [ID:16], Dressers & Chests [ID:13], Recliners [ID:804], Office Chairs [ID:1019], Beds [ID:11], Nightstands [ID:14], TV Stands & Entertainment Centers [ID:5]';
         totalClasses = 1630;
       }
     } else {
@@ -1445,8 +1471,12 @@ An attribute can have multiple sources, e.g. ["pdf", "image"] if confirmed in bo
     result._productId = product.product_id;
     result._imageUrl = (product.image_urls || [])[0] || null;
 
-    // Save to cache for future re-runs
-    writeCache(cacheKey, result);
+    // Save to cache only if extraction got real values (not all null)
+    const hasValues = result.attributes && Object.values(result.attributes).some(v => {
+      const val = typeof v === 'object' ? v.value : v;
+      return val && val !== 'null' && val !== 'N/A';
+    });
+    if (hasValues) writeCache(cacheKey, result);
 
     res.json({ success: true, data: result });
   } catch (err) {
