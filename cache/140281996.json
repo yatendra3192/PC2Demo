@@ -1,0 +1,270 @@
+{
+  "product_name": "Sigi Pro Power Recliner and Swivel Glider with Power Adjustable Headrest and Lumbar Support",
+  "brand": "",
+  "model_number": "",
+  "attributes": {
+    "Additional Intended Use in Nursery": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Adjustability Features": {
+      "value": "Adjustable",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Adjustable Components": {
+      "value": "Armrest",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Built-in USB Port": {
+      "value": "Yes",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Chair Design": {
+      "value": "Standard Recliner",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Commercial Certifications": {
+      "value": "BIFMA Equivalent",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Composite Wood Product (CWP)": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Country of Origin": {
+      "value": "United States",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Durability": {
+      "value": "No Durability Features",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Frame Material": {
+      "value": "Metal",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Leg Material": {
+      "value": "Wood",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Legs Included": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Licensed Product Category": {
+      "value": "Entertainment/Characters",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Motor Type": {
+      "value": "Single Motor",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Ottoman Included": {
+      "value": "No",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Overall Depth - Front to Back": {
+      "value": "46",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Overall Height - Top to Bottom": {
+      "value": "40",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Overall Width - Side to Side": {
+      "value": "37",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Pattern": {
+      "value": "Solid Color",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Plug-In": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Position Type": {
+      "value": "Infinite Position",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Recliner Base Type": {
+      "value": "Swivel",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Supplier Intended and Approved Use": {
+      "value": "Residential Use",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Sustainability & Social Responsibility Certifications (North America Only)": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Sustainability Certificate(s)": {
+      "value": "GREENGUARD Gold Certified",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Sustainability Certification Descriptions": {
+      "value": "This product has been tested against a list of over 1,000 harmful substances according to OEKO-TEX® STANDARD 100",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "TSCA Title VI Compliant (formaldehyde emissions)": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Tufted": {
+      "value": "No",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Upholstery Color": {
+      "value": "Beige",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Upholstery Material": {
+      "value": "Fabric",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Upholstery Material Texture": {
+      "value": "Faux Sheepskin",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Wood Species": {
+      "value": "Eucalyptus",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    }
+  },
+  "missing_attributes": [],
+  "extraction_summary": "Pre-cached extraction from Wayfair QA data — text + image sources verified.",
+  "_productId": "140281996"
+}

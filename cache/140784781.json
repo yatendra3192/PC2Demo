@@ -1,0 +1,215 @@
+{
+  "product_name": "Large Capacity Armoire Wardrobe Closet With Hanging Rod, Adjustable Shelves And Rattan Decorative Doors",
+  "brand": "",
+  "model_number": "",
+  "attributes": {
+    "Adjustable Shelves": {
+      "value": "Yes",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Assembly Required": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Clothing Rod Included": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Clothing Rod Weight Capacity": {
+      "value": "40.94",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Clothing Rod Width - Side to Side": {
+      "value": "27.56",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Composite Wood Product (CWP)": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Door Design": {
+      "value": "See Through",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Door Mechanism": {
+      "value": "Hinged",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Drawer Depth - Front to Back": {
+      "value": "15.75",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Drawer Height - Top to Bottom": {
+      "value": "13.98",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Drawer Width - Side to Side": {
+      "value": "17.52",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Drawers Included": {
+      "value": "No",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Entry Hall Wardrobe": {
+      "value": "No",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Estimated Time to Set Up": {
+      "value": "2",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Imported": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Interior Shelves Included": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Manufactured Wood Type": {
+      "value": "MDF",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Material": {
+      "value": "Solid + Manufactured Wood",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Number of Doors": {
+      "value": "2",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Overall Depth - Front to Back": {
+      "value": "20.47",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Overall Height - Top to Bottom": {
+      "value": "70.87",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Overall Width - Side to Side": {
+      "value": "59.06",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Shelves Included": {
+      "value": "Yes",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Style": {
+      "value": "Modern",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Tipover Restraint Device Included": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    }
+  },
+  "missing_attributes": [],
+  "extraction_summary": "Pre-cached extraction from Wayfair QA data — text + image sources verified.",
+  "_productId": "140784781"
+}

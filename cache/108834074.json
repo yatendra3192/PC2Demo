@@ -1,0 +1,268 @@
+{
+  "product_name": "Luxurious Velvet Recliner For Ultimate Relaxation And Style Enhancement",
+  "brand": "",
+  "model_number": "",
+  "attributes": {
+    "Adjustability Features": {
+      "value": "Reclining",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Adjustable Components": {
+      "value": "Headrest",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Arm Height - Floor to Arm": {
+      "value": "22",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Assembly Required": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Back Fill Material": {
+      "value": "Synthetic Fiber",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Back Height - Seat to Top of Back": {
+      "value": "23",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Chair Design": {
+      "value": "Standard Recliner",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Country of Origin": {
+      "value": "China",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Cushion Construction": {
+      "value": "Foam",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Fill Material": {
+      "value": "Synthetic Fiber",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Imported": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Leg Height - Top to Bottom": {
+      "value": "5",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Legs Included": {
+      "value": "No",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Level of Assembly": {
+      "value": "Minimal Assembly Needed",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Massage Setting": {
+      "value": "No",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Motion Functionality": {
+      "value": "Manual",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Ottoman Included": {
+      "value": "No",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Overall Depth - Front to Back": {
+      "value": "46",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Overall Height - Top to Bottom": {
+      "value": "40",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Overall Width - Side to Side": {
+      "value": "37",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Pattern": {
+      "value": "Solid Color",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Position Type": {
+      "value": "Infinite Position",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Reclining Mechanism": {
+      "value": "Manual - Handle / Lever",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Seat Depth - Front to Back": {
+      "value": "20",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Seat Height - Floor to Seat": {
+      "value": "20",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Seat Width - Side to Side": {
+      "value": "21",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Suggested Number of People for Assembly / Installation": {
+      "value": "2 people",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Supplier Intended and Approved Use": {
+      "value": "Residential Use",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Upholstery Color": {
+      "value": "Beige",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Upholstery Material": {
+      "value": "Fabric",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Upholstery Material Characteristic": {
+      "value": "Textured",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Upholstery Material Texture": {
+      "value": "Velvet",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    }
+  },
+  "missing_attributes": [],
+  "extraction_summary": "Pre-cached extraction from Wayfair QA data — text + image sources verified.",
+  "_productId": "108834074"
+}

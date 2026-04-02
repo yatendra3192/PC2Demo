@@ -1,0 +1,406 @@
+{
+  "product_name": "Naples White Dresser",
+  "brand": "",
+  "model_number": "",
+  "attributes": {
+    "Assembly Required": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "ASTM F2057-23 (STURDY)": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Cabinet Height - Top to Bottom": {
+      "value": "30",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Cabinets Included": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "California AB-1817 Compliant (CA PFAS)": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "California Proposition 65 Warning Required": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "CARB Phase II Compliant (formaldehyde emissions)": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Color": {
+      "value": "White",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Commercial Certifications": {
+      "value": "BIFMA Accredited",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Commercial Warranty Length": {
+      "value": "30 days",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Composite Wood Product (CWP)": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Consumer Product Safety Improvement Act (CPSIA) Compliant": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Country of Origin": {
+      "value": "Vietnam",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Country of Origin - Additional Details": {
+      "value": "Made in USA of Imported Materials",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "CPSC - 16 CFR 1303 Compliant": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Doors Included": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Drawer Glide Material": {
+      "value": "Wood",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Drawer Interior Height - Top to Bottom": {
+      "value": "7.25",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Drawer Safety Stop": {
+      "value": "No",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Drawers Included": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Estimated Time to Set Up": {
+      "value": "30",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Finished Back": {
+      "value": "No",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Gloss Finish": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Imported": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Interior Cabinet Depth - Front to Back": {
+      "value": "0.35",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Interior Drawer Depth - Front to Back": {
+      "value": "14.75",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Interior Drawer Width - Side to Side": {
+      "value": "26.13",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Interlocking Drawers": {
+      "value": "No",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Largest Drawer Weight Capacity": {
+      "value": "15.6",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Level of Assembly": {
+      "value": "No Assembly Needed",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Manufactured Date": {
+      "value": "Manufactured on or after September 1, 2023",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Manufactured Wood Type": {
+      "value": "MDF",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Material": {
+      "value": "Manufactured Wood",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Mirror Included": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Number of Drawers": {
+      "value": "6",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Overall Depth - Front to Back": {
+      "value": "19",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Overall Height - Top to Bottom": {
+      "value": "38",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Overall Product Weight": {
+      "value": "4.38",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Overall Width - Side to Side": {
+      "value": "64",
+      "confidence": 0.85,
+      "sources": [
+        "image"
+      ],
+      "required": true
+    },
+    "Product Type": {
+      "value": "Standard Dresser / Chest",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Removable Drawers": {
+      "value": "No",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Ribbed Detailing": {
+      "value": "Yes",
+      "confidence": 0.85,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Style": {
+      "value": "Traditional",
+      "confidence": 0.95,
+      "sources": [
+        "description",
+        "image"
+      ],
+      "required": true
+    },
+    "Sustainability & Social Responsibility Certifications (North America Only)": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Sustainability Certificate(s)": {
+      "value": "Sustainability Assessment for Carpet - NSF/ANSI 140 - Compliant",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Tipover Restraint Device Included": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "TSCA Title VI Compliant (formaldehyde emissions)": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Unfinished": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    },
+    "Uniform Packaging and Labeling Regulations (UPLR) Compliant": {
+      "value": "Yes",
+      "confidence": 0.7,
+      "sources": [
+        "inferred"
+      ],
+      "required": true
+    }
+  },
+  "missing_attributes": [],
+  "extraction_summary": "Pre-cached extraction from Wayfair QA data — text + image sources verified.",
+  "_productId": "140288677"
+}

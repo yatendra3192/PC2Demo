@@ -1,7 +1,7 @@
 // ── PC2 v2.0 — Frontend Application ──────────────────────
 
 // ── CLIENT MODE ──────────────────────────────────────────
-let clientMode = 'siteone'; // 'siteone' or 'wayfair'
+let clientMode = 'wayfair'; // 'siteone' or 'wayfair'
 
 function switchClient(mode) {
   clientMode = mode;

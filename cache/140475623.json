@@ -1,0 +1,93 @@
+{
+  "product_name": "Wardrobe",
+  "brand": null,
+  "model_number": "140475623",
+  "attributes": {
+    "Material": {
+      "value": "MDF board",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Number of Doors": {
+      "value": "1",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Number of Drawers": {
+      "value": "3",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Style": {
+      "value": "Modern",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": true
+    },
+    "Color": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Shape": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Assembly Required": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": true
+    },
+    "Mirror Included": {
+      "value": "Yes",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": false
+    },
+    "Handle Type": {
+      "value": "Diamond shaped",
+      "confidence": 1,
+      "sources": [
+        "description"
+      ],
+      "required": false
+    },
+    "Weight": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    },
+    "Height": {
+      "value": null,
+      "confidence": 0,
+      "sources": [],
+      "required": false
+    }
+  },
+  "missing_attributes": [
+    "Color",
+    "Shape",
+    "Assembly Required"
+  ],
+  "extraction_summary": "Extracted Material, Number of Doors, Number of Drawers, Style, Mirror Included, and Handle Type from the product description.",
+  "_productId": "140475623",
+  "_imageUrl": "https://assets.wfcdn.com/lf/8/hash/358/413434629/1/image.jpg"
+}
