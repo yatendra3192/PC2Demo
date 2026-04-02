@@ -507,7 +507,7 @@ Return JSON:
 // 4a: Attribute Gap Filling
 app.post('/api/enrich/attributes', async (req, res) => {
   try {
-    const { productData, category, classId } = req.body;
+    const { productData, category, classId, clientMode } = req.body;
 
     // Look up real required attributes from KB based on category/classId
     let requiredAttrList = '';
@@ -537,24 +537,32 @@ app.post('/api/enrich/attributes', async (req, res) => {
       response_format: { type: 'json_object' },
       messages: [{
         role: 'system',
-        content: `You are PC2's enrichment engine for SiteOne Landscape Supply. Given a product record with gaps (missing attributes), fill them using verified sources.
+        content: `You are PC2's enrichment engine. Given a product record with gaps (missing attributes), fill them.
 
-For the category "${category || 'General'}", the REQUIRED attributes from the Knowledge Base are:
+For the category "${category || 'General'}", the REQUIRED attributes are:
 ${requiredAttrList}
+
+${clientMode === 'wayfair' ? `CRITICAL CONSTRAINT: You are working in WAYFAIR MODE.
+- ONLY use data from the product's own text fields (product_name, description, feature_bullets), images, and PDF spec sheets.
+- Do NOT use any external sources, internet lookups, manufacturer websites, or prefilled catalogs.
+- Source must be ONLY: "description" (from product text), "image" (from product photo), "pdf" (from spec sheet), or "inferred" (from the product's own data).
+- Do NOT invent URLs or external source names. Only reference the product's own data.` :
+`Use verified sources to fill gaps. Source can be: "manufacturer_website", "product_datasheet", "certification_database", "industry_standard", "distributor_catalog", "category_inference"`}
 
 For each filled attribute, provide:
 - value: the attribute value
 - confidence: 0.0-1.0
-- source: one of "manufacturer_website" | "product_datasheet" | "certification_database" | "industry_standard" | "distributor_catalog" | "category_inference"
-- source_detail: specific source name (e.g. "Hunter Industries Official Spec Sheet", "UL Product iQ Database")
+- source: ${clientMode === 'wayfair' ? '"description" | "image" | "pdf" | "inferred"' : '"manufacturer_website" | "product_datasheet" | "certification_database" | "industry_standard" | "distributor_catalog" | "category_inference"'}
+- source_detail: ${clientMode === 'wayfair' ? 'which specific field/image/PDF the value came from' : 'specific source name'}
 - was_missing: true if this was a gap that was filled
 
-IMPORTANT: You must also return a "sources_consulted" array listing ALL external sources the system queried to fill these gaps. Each source must include:
+${clientMode === 'wayfair' ? 'Do NOT return a sources_consulted array — all data comes from the product feed.' :
+`IMPORTANT: Return a "sources_consulted" array listing ALL external sources queried:
 - name: human-readable source name
 - type: "manufacturer" | "certification" | "standard" | "distributor" | "database"
 - url: a realistic URL for this source
 - fields_sourced: number of fields this source contributed
-- status: "verified" | "cross_referenced"
+- status: "verified" | "cross_referenced"`}
 
 Return JSON:
 {
@@ -888,7 +896,26 @@ Return JSON:
 Mark the most complete record as is_primary=true. Be thorough — catch color/size variants as possible matches.`
       }, {
         role: 'user',
-        content: `Scan these ${products.length} products for duplicates:\n${JSON.stringify(products.map((p, i) => ({ index: i, id: String(p.product_id), name: p.product_name, description: (p.description || '').substring(0, 300), image_urls: (p.image_urls || []).slice(0, 2) })), null, 2)}`
+        content: (() => {
+          // Build multi-modal content: text + product images for visual comparison
+          const parts = [];
+          const productData = products.map((p, i) => ({
+            index: i, id: String(p.product_id), name: p.product_name,
+            description: (p.description || '').substring(0, 300)
+          }));
+          parts.push({ type: 'text', text: `Scan these ${products.length} products for duplicates. Compare by name, description, AND visually compare the product images below.\n\n${JSON.stringify(productData, null, 2)}\n\nProduct images (compare visually for similarity):` });
+
+          // Add first image of each product for visual comparison (limit to keep under token limits)
+          products.slice(0, 12).forEach((p, i) => {
+            const imgUrl = (p.image_urls || [])[0];
+            if (imgUrl) {
+              parts.push({ type: 'text', text: `\n[Product ${i + 1}: ${String(p.product_id)} — ${(p.product_name || '').substring(0, 50)}]` });
+              parts.push({ type: 'image_url', image_url: { url: imgUrl } });
+            }
+          });
+
+          return parts;
+        })()
       }]
     });
 

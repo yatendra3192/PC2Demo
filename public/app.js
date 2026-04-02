@@ -981,7 +981,8 @@ async function runEnrichment() {
         category: (currentProduct.category && currentProduct.category.category)
           ? currentProduct.category.category + ' > ' + (currentProduct.category.class || '')
           : 'General',
-        classId: currentProduct.category ? currentProduct.category.classId : null
+        classId: currentProduct.category ? currentProduct.category.classId : null,
+        clientMode
       })
     });
     const json = await res.json();
