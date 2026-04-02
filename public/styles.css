@@ -1758,6 +1758,18 @@ body {
   color: var(--red);
 }
 
+.recommended-badge {
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(230, 126, 34, 0.1);
+  color: var(--orange);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
 .optional-badge {
   display: inline-flex;
   font-size: 10px;

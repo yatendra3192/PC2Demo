@@ -96,7 +96,7 @@ function computeACR(product, template) {
 
   // Cross-reference against template — required attrs not in extracted data
   if (template) {
-    const allTemplateAttrs = [...(template.required || []), ...(template.optional || [])].filter(a => !isExcludedAttr(a));
+    const allTemplateAttrs = [...(template.required || []), ...(template.recommended || []), ...(template.optional || [])].filter(a => !isExcludedAttr(a));
     allTemplateAttrs.forEach(reqAttr => {
       const found = attrKeys.find(k => k.toLowerCase() === reqAttr.toLowerCase());
       if (!found) missingNames.push(reqAttr);
@@ -836,8 +836,11 @@ function populateEnrichmentTable() {
   attrKeys.filter(k => !isExcludedAttr(k)).forEach(key => {
     const val = typeof attrs[key] === 'object' ? attrs[key] : { value: attrs[key], confidence: 0.9 };
     if (isMissingVal(val.value)) return;
-    const isMandatory = tpl && (tpl.required || []).some(r => r.toLowerCase() === key.toLowerCase());
-    const badge = isMandatory ? '<span class="required-badge" style="margin-left:4px">REQ</span>' : '';
+    const lk = key.toLowerCase();
+    const isReq = tpl && (tpl.required || []).some(r => r.toLowerCase() === lk);
+    const isRec = tpl && (tpl.recommended || []).some(r => r.toLowerCase() === lk);
+    const badge = isReq ? '<span class="required-badge" style="margin-left:4px">REQ</span>'
+      : isRec ? '<span class="recommended-badge" style="margin-left:4px">REC</span>' : '';
     tbody.innerHTML += `<tr>
       <td class="field-name">${key}${badge}</td>
       <td>${val.value}</td>
@@ -849,8 +852,9 @@ function populateEnrichmentTable() {
   // Now show ALL missing template attributes (mandatory first, then optional)
   if (tpl) {
     const allTemplate = [
-      ...((tpl.required || []).map(a => ({ name: a, mandatory: true }))),
-      ...((tpl.optional || []).map(a => ({ name: a, mandatory: false })))
+      ...((tpl.required || []).map(a => ({ name: a, priority: 'required' }))),
+      ...((tpl.recommended || []).map(a => ({ name: a, priority: 'recommended' }))),
+      ...((tpl.optional || []).map(a => ({ name: a, priority: 'optional' })))
     ].filter(a => !isExcludedAttr(a.name));
     allTemplate.forEach(attr => {
       const found = attrKeys.find(k => k.toLowerCase() === attr.name.toLowerCase());
@@ -859,8 +863,10 @@ function populateEnrichmentTable() {
         if (!isMissingVal(val.value)) return; // Already rendered above
       }
       // This is a missing attribute — show empty row
-      const badge = attr.mandatory
+      const badge = attr.priority === 'required'
         ? '<span class="required-badge" style="margin-left:4px">REQ</span>'
+        : attr.priority === 'recommended'
+        ? '<span class="recommended-badge" style="margin-left:4px">REC</span>'
         : '<span class="optional-badge" style="margin-left:4px">OPT</span>';
       tbody.innerHTML += `<tr class="missing-attr-row">
         <td class="field-name">${attr.name}${badge}</td>
@@ -1775,6 +1781,9 @@ async function loadTemplates() {
       const reqHtml = (tpl.template.required || []).map(a =>
         `<span class="required-badge">${a}</span>`
       ).join('');
+      const recHtml = (tpl.template.recommended || []).map(a =>
+        `<span class="recommended-badge">${a}</span>`
+      ).join('');
       const optHtml = (tpl.template.optional || []).map(a =>
         `<span class="optional-badge">${a}</span>`
       ).join('');
@@ -1793,8 +1802,10 @@ async function loadTemplates() {
           </div>
           ${sourceBadge}
         </div>
-        <div style="margin-bottom:6px;font-size:11px;font-weight:600;color:var(--gray-500)">REQUIRED (${(tpl.template.required || []).length})</div>
+        <div style="margin-bottom:6px;font-size:11px;font-weight:600;color:var(--red)">REQUIRED (${(tpl.template.required || []).length})</div>
         <div class="template-attrs" style="margin-bottom:10px">${reqHtml || '<span style="color:var(--gray-400);font-size:12px">None</span>'}</div>
+        ${recHtml ? `<div style="margin-bottom:6px;font-size:11px;font-weight:600;color:var(--orange)">RECOMMENDED (${(tpl.template.recommended || []).length})</div>
+        <div class="template-attrs" style="margin-bottom:10px">${recHtml}</div>` : ''}
         <div style="font-size:11px;font-weight:600;color:var(--gray-400)">OPTIONAL (${(tpl.template.optional || []).length})</div>
         <div class="template-attrs">${optHtml || '<span style="color:var(--gray-400);font-size:12px">None</span>'}</div>
       </div>`;
@@ -2604,7 +2615,7 @@ async function runProductDQ() {
 
     // Show missing template attributes as FAIL
     if (template) {
-      const allTemplateAttrs = [...(template.required || []), ...(template.optional || [])].filter(a => !isExcludedAttr(a));
+      const allTemplateAttrs = [...(template.required || []), ...(template.recommended || []), ...(template.optional || [])].filter(a => !isExcludedAttr(a));
       allTemplateAttrs.forEach(attr => {
         const found = Object.keys(allAttrs).find(k => k.toLowerCase() === attr.toLowerCase());
         if (found) return; // Already shown above

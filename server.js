@@ -1189,12 +1189,15 @@ app.post('/api/ingest/bulk/get-templates', (req, res) => {
       let optional = [];
       let kbSource = false;
 
+      let recommended = [];
+
       if (isWayfair && wkb) {
         // Wayfair KB lookup by classId
         const wClass = wkb.classMap[classId];
         if (wClass && wClass.attributes.length > 0) {
           required = wClass.attributes.filter(a => a.priority === 'Required').map(a => a.name);
-          optional = wClass.attributes.filter(a => a.priority !== 'Required').map(a => a.name);
+          recommended = wClass.attributes.filter(a => a.priority === 'Recommended').map(a => a.name);
+          optional = wClass.attributes.filter(a => a.priority === 'Optional').map(a => a.name);
           kbSource = true;
         }
         // Fallback: match by class name
@@ -1202,7 +1205,8 @@ app.post('/api/ingest/bulk/get-templates', (req, res) => {
           const matchClass = wkb.classes.find(c => c.name && c.name.toLowerCase() === cls.toLowerCase());
           if (matchClass) {
             required = matchClass.attributes.filter(a => a.priority === 'Required').map(a => a.name);
-            optional = matchClass.attributes.filter(a => a.priority !== 'Required').map(a => a.name);
+            recommended = matchClass.attributes.filter(a => a.priority === 'Recommended').map(a => a.name);
+            optional = matchClass.attributes.filter(a => a.priority === 'Optional').map(a => a.name);
             kbSource = true;
           }
         }
@@ -1242,6 +1246,7 @@ app.post('/api/ingest/bulk/get-templates', (req, res) => {
         source: kbSource ? 'Knowledge Base' : 'Default Template',
         template: {
           required,
+          recommended,
           optional
         }
       };
