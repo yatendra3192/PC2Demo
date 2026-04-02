@@ -2103,15 +2103,25 @@ async function runWizardDedup() {
   showLoading('Scanning for Duplicates', `Comparing ${bulkProducts.length} products...`);
 
   try {
-    // Build product list with extracted data
+    // Build product list with extracted data + attributes for comparison
     const products = bulkProducts.map((p, i) => {
       const extracted = pipelineState.extractedData[i] || {};
+      const attrs = extracted.attributes || {};
+      // Build compact attribute summary for dedup comparison
+      const attrSummary = {};
+      Object.entries(attrs).forEach(([k, v]) => {
+        const val = typeof v === 'object' ? v.value : v;
+        if (val && !['null','n/a','na','undefined','none'].includes(String(val).trim().toLowerCase())) {
+          attrSummary[k] = String(val).substring(0, 50);
+        }
+      });
       return {
         product_id: p.product_id,
         product_name: extracted.product_name || p.product_name,
         description: p.description || '',
         brand: extracted.brand || '',
-        image_urls: p.image_urls || []
+        image_urls: p.image_urls || [],
+        attributes: attrSummary
       };
     });
 

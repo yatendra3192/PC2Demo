@@ -897,13 +897,32 @@ Mark the most complete record as is_primary=true. Be thorough — catch color/si
       }, {
         role: 'user',
         content: (() => {
-          // Build multi-modal content: text + product images for visual comparison
+          // Build multi-modal content: text + attributes + product images
           const parts = [];
-          const productData = products.map((p, i) => ({
-            index: i, id: String(p.product_id), name: p.product_name,
-            description: (p.description || '').substring(0, 300)
-          }));
-          parts.push({ type: 'text', text: `Scan these ${products.length} products for duplicates. Compare by name, description, AND visually compare the product images below.\n\n${JSON.stringify(productData, null, 2)}\n\nProduct images (compare visually for similarity):` });
+          const productData = products.map((p, i) => {
+            const obj = {
+              index: i, id: String(p.product_id), name: p.product_name,
+              description: (p.description || '').substring(0, 200)
+            };
+            // Include extracted attributes for comparison
+            if (p.attributes && Object.keys(p.attributes).length > 0) {
+              obj.extracted_attributes = p.attributes;
+            }
+            return obj;
+          });
+          parts.push({ type: 'text', text: `Scan these ${products.length} products for duplicates.
+
+COMPARE BY ALL OF THESE:
+1. Product name and description similarity
+2. Extracted attribute values — if dimensions, material, style, or features differ significantly, they are NOT duplicates even if names are identical
+3. Visual appearance from product images below
+
+IMPORTANT: Two products with the SAME name but DIFFERENT dimensions (height, width, depth) or different materials are DIFFERENT PRODUCTS (size/color variants), not duplicates. Only flag as exact_match if attributes also match.
+
+Product data with extracted attributes:
+${JSON.stringify(productData, null, 2)}
+
+Product images (compare visually):` });
 
           // Add first image of each product for visual comparison (limit to keep under token limits)
           products.slice(0, 12).forEach((p, i) => {
