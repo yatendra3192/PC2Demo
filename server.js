@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 
 // ── AI PROVIDER WRAPPER (OpenAI → Gemini fallback) ──────
 const GEMINI_API_KEY = process.env.GOOGLE_AI_API_KEY;
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
 function convertToGeminiFormat(messages) {
@@ -1606,7 +1606,7 @@ app.post('/api/enrich/generate-image', async (req, res) => {
     if (!apiKey) throw new Error('No GOOGLE_AI_API_KEY');
 
     console.log('Image gen: trying Gemini Flash...');
-    const geminiImageModel = 'gemini-2.0-flash-preview-image-generation';
+    const geminiImageModel = 'gemini-2.5-flash-image-preview';
     const geminiImageUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiImageModel}:generateContent?key=${apiKey}`;
 
     const response = await fetch(geminiImageUrl, {
